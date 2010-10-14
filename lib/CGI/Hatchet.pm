@@ -209,37 +209,76 @@ sub _scan_multipart_formdata {
         \bboundary=(?:"(.*?)"|([^;]*))
     }msx ? $+ : $self->_die(400, 'Bad Request');
     my $crlf = $self->crlf;
-    my $ctx = {
-        buf => q{},
+    my $c = {
         param => {},
         upload_info => {},
-        crlf => quotemeta $crlf,
-        boundary => quotemeta $boundary,
-        boundary_size => (length $boundary) + 2 * (length "--$crlf"),
         taint => (substr $0, 0, 0),
-        header_size => 0,
-        header_name => q{},
         header => {},
-        reader => $self->_proc_reader($input),
-        setter => sub{},
     };
-    local $@ = undef;
-    my $fail = ! eval {
-        my $cont = \&_scan_multipart_formdata_first_boundary;
-        while (1) {
-            $cont = $cont->($self, $ctx, $cont) or last;
+    my $boundary_size = (length $boundary) + 2 * (length "--$crlf");
+    $crlf = quotemeta $crlf;
+    $boundary = quotemeta $boundary;
+    my $body = q{};
+    my $header_size = 0;
+    my $header_name = q{};
+    my $reader = $self->_proc_reader($input);
+    my $setter = sub {};
+    my $state = 1;
+    while ($state) {
+        if ($state == 1) {
+            if ($body =~ s/\A--${boundary}${crlf}//msx) {
+                $state = 2;
+            }
+            else {
+                length $body < $boundary_size or $self->_die(400, 'Bad Request');
+                $reader->($body) or $self->_die(400, 'Bad Request');
+            }
         }
-        1;
-    };
-    if ($fail) {
-        my $err = $@;
-        $self->_die(ref $err ? @{$err}: (500, "$err"));
+        elsif ($state == 2) {
+            if ($body =~ s/\A${crlf}//msx) {
+                $setter = $self->_proc_setter($c);
+                $header_size = 0;
+                $header_name = q{};
+                $c->{header} = {};
+                $state = 3;
+            }
+            elsif ($body =~ s/\A(([A-Za-z0-9_-]+):[\t\x20]*(.+?)${crlf})//msx) {
+                $header_size += length $1;
+                $header_name = $c->{taint} . (uc $2);
+                $header_name =~ tr/-/_/;
+                $c->{header}{$header_name} = $c->{taint} . $3;
+            }
+            elsif ($body =~ s/(\A[\t\x20]*(.+?)${crlf})//msx) {
+                $header_size += length $1;
+                $header_name ne q{} or $self->_die(400, 'Bad Request');
+                $c->{header}{$header_name} .= $c->{taint} . $1;
+            }
+            else {
+                $reader->($body) or $self->_die(400, 'Bad Request');
+            }
+            $header_size <= $self->max_header or $self->_die(400, 'Bad Request');
+        }
+        elsif ($state == 3) {
+            if ($body =~ s/\A(.*?)${crlf}--${boundary}(--)?${crlf}//msx) {
+                $setter->($1);
+                $state = $2 ? undef : 2;
+            }
+            else {
+                my $size = (length $body) - $boundary_size + 1;
+                if ($size > 0) {
+                    $setter->(substr $body, 0, $size, q{});
+                }
+                if (length $body < $boundary_size) {
+                    $reader->($body) or $self->_die(400, 'Bad Request');
+                }
+            }
+        }
     }
-    for my $name (keys %{$ctx->{param}}) {
-        $self->param($name => @{$ctx->{param}{$name}});
+    for my $name (keys %{$c->{param}}) {
+        $self->param($name => @{$c->{param}{$name}});
     }
-    for my $filename (keys %{$ctx->{upload_info}}) {
-        $self->upload_info($filename => @{$ctx->{upload_info}{$filename}});
+    for my $filename (keys %{$c->{upload_info}}) {
+        $self->upload_info($filename => @{$c->{upload_info}{$filename}});
     }
     return $self;
 }
@@ -274,33 +313,31 @@ sub _proc_reader {
 }
 
 sub _proc_setter {
-    my($self, $ctx) = @_;
-    my($header, $param, $taint, $upload_info)
-        = @{$ctx}{qw(header param taint upload_info)};
-    my($name, $filename) = $self->_content_disposition($header);
+    my($self, $c) = @_;
+    my($name, $filename) = $self->_content_disposition($c->{header});
     my $enable_upload = $self->enable_upload;
-    $self = $ctx = undef; # to avoid cyclic references.
+    $self = undef; # to avoid cyclic references.
     defined $name or return sub{};
     if (! defined $filename) {
-        push @{$param->{$name}}, $taint;
-        return sub{ $param->{$name}[-1] .= shift };
+        push @{$c->{param}{$name}}, $c->{taint};
+        return sub{ $c->{param}{$name}[-1] .= shift };
     }
     else {
         $enable_upload or return sub{};
         my $fh = IO::File->new_tmpfile or return sub{};
         binmode $fh;
-        push @{$param->{$name}}, $taint . $filename;
-        push @{$upload_info->{$filename}}, {
-            %{$header},
+        push @{$c->{param}{$name}}, $c->{taint} . $filename;
+        push @{$c->{upload_info}{$filename}}, {
+            %{$c->{header}},
             CONTENT_LENGTH => 0,
-            name => $taint . $name,
-            filename => $taint . $filename,
+            name => $c->{taint} . $name,
+            filename => $c->{taint} . $filename,
             handle => $fh,
         };
         return sub{
             my($part) = @_;
             print {$fh} $part;
-            $upload_info->{$filename}[-1]{'CONTENT_LENGTH'} += length $part;
+            $c->{upload_info}{$filename}[-1]{'CONTENT_LENGTH'} += length $part;
         };
     }
 }
@@ -313,68 +350,6 @@ sub _content_disposition {
         $h{$1} = $+;
     }
     return @h{'name', 'filename'};
-}
-
-sub _scan_multipart_formdata_first_boundary {
-    my($self, $ctx, $cont) = @_;
-    my($boundary, $crlf) = @{$ctx}{'boundary', 'crlf'};
-    if ($ctx->{buf} =~ s/\A--${boundary}${crlf}//msx) {
-        $cont = \&_scan_multipart_formdata_header;
-    }
-    elsif (length $ctx->{buf} < $ctx->{boundary_size}) {
-        $ctx->{reader}->($ctx->{buf}) or croak [400, 'Bad Request'];
-    }
-    else {
-        croak [400, 'Bad Request'];
-    }
-    return $cont;
-}
-
-sub _scan_multipart_formdata_header {
-    my($self, $ctx, $cont) = @_;
-    my $crlf = $ctx->{crlf};
-    if ($ctx->{buf} =~ s/\A${crlf}//msx) {
-        $ctx->{setter} = $self->_proc_setter($ctx);
-        $ctx->{header_size} = 0;
-        $ctx->{header_name} = q{};
-        $ctx->{header} = {};
-        $cont = \&_scan_multipart_formdata_body;
-    }
-    elsif ($ctx->{buf} =~ s/\A(([A-Za-z0-9_-]+):[\t\x20]*(.+?)${crlf})//msx) {
-        $ctx->{header_size} += length $1;
-        $ctx->{header_name} = $ctx->{taint} . (uc $2);
-        $ctx->{header_name} =~ tr/-/_/;
-        $ctx->{header}{ $ctx->{header_name} } = $ctx->{taint} . $3;
-    }
-    elsif ($ctx->{buf} =~ s/(\A[\t\x20]*(.+?)${crlf})//msx) {
-        $ctx->{header_size} += length $1;
-        $ctx->{header_name} ne q{} or croak [400, 'Bad Request'];
-        $ctx->{header}{ $ctx->{header_name} } .= $ctx->{taint} . $1;
-    }
-    else {
-        $ctx->{reader}->($ctx->{buf}) or croak [400, 'Bad Request'];
-    }
-    $ctx->{header_size} <= $self->max_header or croak [400, 'Bad Request'];
-    return $cont;
-}
-
-sub _scan_multipart_formdata_body {
-    my($self, $ctx, $cont) = @_;
-    my($boundary, $crlf) = @{$ctx}{'boundary', 'crlf'};
-    if ($ctx->{buf} =~ s/\A(.*?)${crlf}--${boundary}(--)?${crlf}//msx) {
-        $ctx->{setter}->($1);
-        $cont = $2 ? undef : \&_scan_multipart_formdata_header;
-    }
-    else {
-        my $size = (length $ctx->{buf}) - $ctx->{boundary_size} + 1;
-        if ($size > 0) {
-            $ctx->{setter}->(substr $ctx->{buf}, 0, $size, q{});
-        }
-        if (length $ctx->{buf} < $ctx->{boundary_size}) {
-            $ctx->{reader}->($ctx->{buf}) or croak [400, 'Bad Request'];
-        }
-    }
-    return $cont;
 }
 
 1;
