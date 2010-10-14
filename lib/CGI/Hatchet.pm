@@ -368,8 +368,7 @@ sub _scan_multipart_formdata_body {
     else {
         my $size = (length $ctx->{buf}) - $ctx->{boundary_size} + 1;
         if ($size > 0) {
-            $ctx->{setter}->(substr $ctx->{buf}, 0, $size);
-            substr $ctx->{buf}, 0, $size, q{};
+            $ctx->{setter}->(substr $ctx->{buf}, 0, $size, q{});
         }
         if (length $ctx->{buf} < $ctx->{boundary_size}) {
             $ctx->{reader}->($ctx->{buf}) or croak [400, 'Bad Request'];
