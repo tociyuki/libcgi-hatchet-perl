@@ -5,7 +5,7 @@ use warnings;
 use IO::File;
 use Carp;
 
-use version; our $VERSION = '0.001';
+use version; our $VERSION = '0.002';
 
 # $Id$
 # $Revision$
@@ -77,7 +77,7 @@ sub scan_cookie {
     return $self;
 }
 
-sub read_entity {
+sub read_body {
     my($self, $input) = @_;
     my $reader = $self->_proc_reader($input);
     my $body = q{};
@@ -102,7 +102,7 @@ sub scan_formdata {
         $self->{param} = {};
         my $content_type = $self->content_type;
         if ($content_type =~ m{\Aapplication/x-www-form-urlencoded\b}msx) {
-            $self->_scan_urlencoded($self->read_entity($input));
+            $self->_scan_urlencoded($self->read_body($input));
         }
         elsif ($content_type =~ m{\Amultipart/form-data\b}msx) {
             $self->_scan_multipart_formdata($input);
@@ -205,24 +205,24 @@ sub _die {
 
 sub _scan_multipart_formdata {
     my($self, $input) = @_;
-    my $boundary = $self->content_type =~ m{
-        \bboundary=(?:"(.*?)"|([^;]*))
-    }msx ? $+ : $self->_die(400, 'Bad Request');
+    my $boundary =
+        $self->content_type =~ m{\bboundary=(?:"(.+?)"|([^;]+))}msx ? $+
+        : $self->_die(400, 'Bad Request');
     my $crlf = $self->crlf;
-    my $c = {
-        param => {},
-        upload_info => {},
-        taint => (substr $0, 0, 0),
-        header => {},
-    };
-    my $boundary_size = (length $boundary) + 2 * (length "--$crlf");
-    $crlf = quotemeta $crlf;
+    my $bd_size = (length $boundary) + 2 * (length "--$crlf");
     $boundary = quotemeta $boundary;
+    $crlf = quotemeta $crlf;
     my $body = q{};
-    my $header_size = 0;
-    my $header_name = q{};
+    my $hd_size = 0;
+    my $hd_name = q{};
     my $reader = $self->_proc_reader($input);
     my $setter = sub {};
+    my $c = {
+        taint => (substr $0, 0, 0),
+        header => {},
+        param => {},
+        upload => {},
+    };
     my $state = 1;
     while ($state) {
         if ($state == 1) {
@@ -230,45 +230,48 @@ sub _scan_multipart_formdata {
                 $state = 2;
             }
             else {
-                length $body < $boundary_size or $self->_die(400, 'Bad Request');
+                length $body < $bd_size or $self->_die(400, 'Bad Request');
                 $reader->($body) or $self->_die(400, 'Bad Request');
             }
         }
         elsif ($state == 2) {
             if ($body =~ s/\A${crlf}//msx) {
                 $setter = $self->_proc_setter($c);
-                $header_size = 0;
-                $header_name = q{};
-                $c->{header} = {};
+                $hd_size = 0;
+                $hd_name = q{};
+                %{$c->{header}} = ();
                 $state = 3;
             }
-            elsif ($body =~ s/\A(([A-Za-z0-9_-]+):[\t\x20]*(.+?)${crlf})//msx) {
-                $header_size += length $1;
-                $header_name = $c->{taint} . (uc $2);
-                $header_name =~ tr/-/_/;
-                $c->{header}{$header_name} = $c->{taint} . $3;
+            elsif ($body =~ s/\A(([A-Za-z0-9-]+):[\t\x20]*(.*?)${crlf})//msx) {
+                $hd_size += length $1;
+                $hd_name = $c->{taint} . (uc $2);
+                $hd_name =~ tr/-/_/;
+                $c->{header}{$hd_name} = $c->{taint} . $3;
             }
-            elsif ($body =~ s/(\A[\t\x20]*(.+?)${crlf})//msx) {
-                $header_size += length $1;
-                $header_name ne q{} or $self->_die(400, 'Bad Request');
-                $c->{header}{$header_name} .= $c->{taint} . $1;
+            elsif ($body =~ s/(\A[\t\x20]+(.*?)${crlf})//msx) {
+                $hd_size += length $1;
+                $hd_name ne q{} or $self->_die(400, 'Bad Request');
+                $c->{header}{$hd_name} .= $c->{taint} . $2;
+            }
+            elsif ($body =~ m{(.*?)${crlf}}msx) {
+                $self->_die(400, 'Bad Request');
             }
             else {
                 $reader->($body) or $self->_die(400, 'Bad Request');
             }
-            $header_size <= $self->max_header or $self->_die(400, 'Bad Request');
+            $hd_size <= $self->max_header or $self->_die(400, 'Bad Request');
         }
         elsif ($state == 3) {
             if ($body =~ s/\A(.*?)${crlf}--${boundary}(--)?${crlf}//msx) {
                 $setter->($1);
-                $state = $2 ? undef : 2;
+                $state = $2 ? 0 : 2;
             }
             else {
-                my $size = (length $body) - $boundary_size + 1;
+                my $size = (length $body) - $bd_size + 1;
                 if ($size > 0) {
                     $setter->(substr $body, 0, $size, q{});
                 }
-                if (length $body < $boundary_size) {
+                if (length $body < $bd_size) {
                     $reader->($body) or $self->_die(400, 'Bad Request');
                 }
             }
@@ -277,8 +280,8 @@ sub _scan_multipart_formdata {
     for my $name (keys %{$c->{param}}) {
         $self->param($name => @{$c->{param}{$name}});
     }
-    for my $filename (keys %{$c->{upload_info}}) {
-        $self->upload_info($filename => @{$c->{upload_info}{$filename}});
+    for my $filename (keys %{$c->{upload}}) {
+        $self->upload_info($filename => @{$c->{upload}{$filename}});
     }
     return $self;
 }
@@ -293,10 +296,10 @@ sub _proc_reader {
         $content_length <= $limit or $self->_die(400, 'Bad Request');
     }
     my $block_size = $self->block_size;
-    $self = undef; # to avoid cyclic references.
     my $count = 0;
-    my $spin = 0;
+    my $idle = 0;
     binmode $input;
+    $self = undef;
     return sub{
         while (1) {
             read $input, my($data), $block_size;
@@ -306,7 +309,7 @@ sub _proc_reader {
                 $_[0] .= $data; ## no critic qw(ArgUnpacking)
                 return $count;
             }
-            last if ++$spin > 1000;
+            last if ++$idle > 500;
         }
         return;
     };
@@ -314,30 +317,31 @@ sub _proc_reader {
 
 sub _proc_setter {
     my($self, $c) = @_;
-    my($name, $filename) = $self->_content_disposition($c->{header});
+    my($taint, $header, $param, $upload) = @{$c}{qw(taint header param upload)};
+    my($name, $filename) = $self->_content_disposition($header);
     my $enable_upload = $self->enable_upload;
-    $self = undef; # to avoid cyclic references.
+    $self = $c = undef;
     defined $name or return sub{};
     if (! defined $filename) {
-        push @{$c->{param}{$name}}, $c->{taint};
-        return sub{ $c->{param}{$name}[-1] .= shift };
+        push @{$param->{$name}}, $taint;
+        return sub{ $param->{$name}[-1] .= shift };
     }
     else {
         $enable_upload or return sub{};
         my $fh = IO::File->new_tmpfile or return sub{};
         binmode $fh;
-        push @{$c->{param}{$name}}, $c->{taint} . $filename;
-        push @{$c->{upload_info}{$filename}}, {
-            %{$c->{header}},
+        push @{$param->{$name}}, $taint . $filename;
+        push @{$upload->{$filename}}, {
+            %{$header},
             CONTENT_LENGTH => 0,
-            name => $c->{taint} . $name,
-            filename => $c->{taint} . $filename,
+            name => $taint . $name,
+            filename => $taint . $filename,
             handle => $fh,
         };
         return sub{
             my($part) = @_;
             print {$fh} $part;
-            $c->{upload_info}{$filename}[-1]{'CONTENT_LENGTH'} += length $part;
+            $upload->{$filename}[-1]{'CONTENT_LENGTH'} += length $part;
         };
     }
 }
@@ -364,7 +368,7 @@ CGI::Hatchet - A form decoder for PSGI applications like as CGI.pm
 
 =head1 VERSION
 
-0.001
+0.002
 
 =head1 SYNOPSIS
 
@@ -474,7 +478,7 @@ This module provides you to decode form-data for PSGI applications.
 
 =item C<< $q->scan_formdata($input) >>
 
-=item C<< $q->read_entity($input) >>
+=item C<< $q->read_body($input) >>
 
 =item C<< $q->error >>
 

@@ -179,12 +179,12 @@ use CGI::Hatchet;
 }
 
 {
-    describe 'read_entity';
+    describe 'read_body';
 
     it 'can be done with CGI::Hatchet instance.';
 
         my $q = CGI::Hatchet->new;
-        can_ok $q, 'read_entity';
+        can_ok $q, 'read_body';
 }
 
 {
