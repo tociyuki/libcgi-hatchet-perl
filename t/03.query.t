@@ -1,81 +1,110 @@
 use strict;
 use warnings;
-use Test::More tests => 26;
+use Test::Base;
 use CGI::Hatchet;
 
-{
-    my $q = CGI::Hatchet->new(env => {
-        QUERY_STRING => 'a=A&b=B&c=C',
-    });
+plan tests => 1 * blocks;
 
-    is($q->query_string, 'a=A&b=B&c=C');
-    my @keys = $q->param;
-    is((scalar @keys), 3, 'returns correct number 3');
-    is((scalar $q->param('a')), 'A', 'a is A');
-    is((scalar $q->param('b')), 'B', 'b is B');
-    is((scalar $q->param('c')), 'C', 'c is C');
+filters {
+    input => [qw(eval test_scan_formdata)],
+    expected => [qw(eval)],
+};
+
+run_is_deeply 'input' => 'expected';
+
+sub test_scan_formdata {
+    my($env) = @_;
+    return CGI::Hatchet->new->scan_formdata($env);
 }
 
+__END__
+
+=== simple a & b & c
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->query_string('a=A&b=B&c=C');
-    $q->scan_formdata;
-    my @keys = $q->param;
-    is((scalar @keys), 3, 'returns correct number 3');
-    is((scalar $q->param('a')), 'A', 'a is A');
-    is((scalar $q->param('b')), 'B', 'b is B');
-    is((scalar $q->param('c')), 'C', 'c is C');
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => 'a=A&b=B&c=C',
+}
+--- expected
+{
+    query_param => [
+        'a' => 'A',
+        'b' => 'B',
+        'c' => 'C',
+    ],
 }
 
+=== simple a ; b ; c
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->query_string('a=A;b=B;c=C');
-    $q->scan_formdata;
-    my @keys = $q->param;
-    is((scalar @keys), 3, 'returns correct number 3');
-    is((scalar $q->param('a')), 'A', 'a is A');
-    is((scalar $q->param('b')), 'B', 'b is B');
-    is((scalar $q->param('c')), 'C', 'c is C');
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => 'a=A;b=B;c=C',
+}
+--- expected
+{
+    query_param => [
+        'a' => 'A',
+        'b' => 'B',
+        'c' => 'C',
+    ],
 }
 
+=== complex foo, bar, keyword
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->query_string('foo=&bar===BAR=BAR==&=cow&baz&=&&');
-    $q->scan_formdata;
-    my @keys = $q->param;
-    is((scalar @keys), 3, 'returns correct number 3');
-    is((scalar $q->param('foo')), q{}, 'foo is empty.');
-    is((scalar $q->param('bar')), '==BAR=BAR==', 'bar is "==BAR=BAR=="');
-    is((scalar $q->param('keyword')), 'baz', 'keyword is baz');
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => 'foo=&bar===BAR=BAR==&=cow&baz&=&&',
+}
+--- expected
+{
+    query_param => [
+        'foo' => q{},
+        'bar' => '==BAR=BAR==',
+        'keyword' => 'baz',
+    ],
 }
 
+=== multi values
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->query_string('a=A&a=B&a=C');
-    $q->scan_formdata;
-    my @keys = $q->param;
-    is((scalar @keys), 1, 'returns correct number 1');
-    is((scalar $q->param('a')), 'A', 'scalar a is A');
-    is_deeply [$q->param('a')], ['A', 'B', 'C'], 'array a is [A, B, C]';
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => 'a=A&a=B&a=C',
+}
+--- expected
+{
+    query_param => [
+        'a' => 'A',
+        'a' => 'B',
+        'a' => 'C',
+    ],
 }
 
+=== multi keyword values
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->keyword_name('a');
-    $q->query_string('A&b=B&a=C&D');
-    $q->scan_formdata;
-    my @keys = $q->param;
-    is((scalar @keys), 2, 'returns correct number 2');
-    is((scalar $q->param('a')), 'A', 'scalar a is A');
-    is_deeply [$q->param('a')], ['A', 'C', 'D'], 'array a is [A, C, D]';
-    is((scalar $q->param('b')), 'B', 'b is B');
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => 'A&b=B&keyword=C&D',
+}
+--- expected
+{
+    query_param => [
+        'keyword' => 'A',
+        'b' => 'B',
+        'keyword' => 'C',
+        'keyword' => 'D',
+    ],
 }
 
+=== decode uri
+--- input
 {
-    my $q = CGI::Hatchet->new;
-    $q->query_string('%61%62++%63d=%65%66++%67h');
-    $q->scan_formdata;
-    is_deeply [$q->param], ['ab  cd'], 'decode "%61%62++%63d"';
-    is_deeply [$q->param('ab  cd')], ['ef  gh'], '"ab  cd" is "ef  gh"';
+    REQUEST_METHOD => 'GET',
+    QUERY_STRING => '%61%62++%63d=%65%66++%67h',
+}
+--- expected
+{
+    query_param => [
+        'ab  cd' => 'ef  gh',
+    ],
 }
 
