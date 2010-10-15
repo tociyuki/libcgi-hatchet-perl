@@ -13,10 +13,10 @@ filters {
 
 run {
     my($block) = @_;
-    my $q = CGI::Hatchet->new(%{$block->option || {}});
+    my $q = CGI::Hatchet->new($block->option);
     my $env = $block->env;
     my $formdata = $block->formdata;
-    if ($env->{CONTENT_TYPE} =~ m{application/x-www-form-urlencoded}msx) {
+    if ($env->{CONTENT_TYPE} =~ m{www-form-urlencoded}msx) {
         chomp $formdata;
     }
     my $expected = $block->expected;
@@ -28,19 +28,19 @@ run {
     open my($fh), '<', \$formdata;
     $env->{'psgi.input'} = $fh;
     $env->{'CONTENT_LENGTH'} = length $formdata;
-    my $paramh = $q->scan_formdata($env);
+    my $ph = $q->scan_formdata($env);
     close $fh;
-    my $upload_data;
+    my $got_body;
     if ($expected_upload) {
-        my $uph = delete $paramh->{upload_info}[1]{handle};
+        my $uph = delete $ph->{upload_info}[1]{handle};
         seek $uph, 0, 0;
-        $upload_data = do{ local $/ = undef; <$uph> };
+        $got_body = do{ local $/ = undef; <$uph> };
         $expected->{upload_info}[1]{'CONTENT_LENGTH'} = length $upload_body;
     }
-    is_deeply $paramh, $expected, $block->name . ' param';
+    is_deeply $ph, $expected, $block->name . ' param';
     SKIP: {
         skip 'without upload', 1 unless $expected_upload;
-        is $upload_data, $upload_body, $block->name . ' upload body';
+        is $got_body, $upload_body, $block->name . ' upload body';
     }
 };
 
@@ -132,7 +132,6 @@ foo=&bar===BAR=BAR==&=cow&baz&=&&
 
 === multi values
 --- option
-{}
 --- env
 {
     REQUEST_METHOD => 'POST',
@@ -153,21 +152,22 @@ a=A&a=B&a=C
 
 === multi keyword values
 --- option
+{keyword_name => 'a'}
 --- env
 {
     REQUEST_METHOD => 'POST',
     CONTENT_TYPE => 'application/x-www-form-urlencoded',
 }
 --- formdata
-A&b=B&keyword=C&D
+A&b=B&a=C&D
 --- expected
 {
     query_param => [],
     body_param => [
-        'keyword' => 'A',
+        'a' => 'A',
         'b' => 'B',
-        'keyword' => 'C',
-        'keyword' => 'D',
+        'a' => 'C',
+        'a' => 'D',
     ],
 }
 --- body

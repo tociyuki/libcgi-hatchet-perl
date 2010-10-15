@@ -19,10 +19,12 @@ __PACKAGE__->_mk_attributes(
         request_method status content_type content_length body
     ),
 );
+__PACKAGE__->_mk_attributes(
+    \&_param_accessor => qw(cookie header),
+);
 
 sub new {
-    my($class, %arg) = @_;
-    my $env = delete $arg{env};
+    my($class, @arg) = @_;
     my $self = bless {
         max_post => $DEFAULT_MAX_POST,
         enable_upload => 0,
@@ -30,12 +32,29 @@ sub new {
         block_size => 4 * 1024,
         keyword_name => 'keyword',
         crlf => undef,
-        (ref $class ? %{$class} : ()),
-        %arg,
         status => 200,
+        (ref $class ? %{$class} : ()),
+        (@arg == 1 && ref $arg[0] eq 'HASH' ? %{$arg[0]} : @arg),
         error => undef,
     }, ref $class ? ref $class : $class;
     return $self;
+}
+
+sub crlf {
+    my($self, @arg) = @_;
+    if (@arg) {
+        $self->{crlf} = $arg[0];
+    }
+    if (! $self->{crlf}) {
+        my $os = $^O || do {
+            require Config;
+            $Config::Config{'osname'}; ## no critic qw(PackageVars)
+        };
+        $self->{crlf} = $os =~ m/VMS/msxi ? "\n"
+            : "\t" ne "\011" ? "\r\n"
+            : "\015\012";
+    }
+    return $self->{crlf};
 }
 
 sub scan_cookie {
@@ -56,7 +75,7 @@ sub read_body {
     my $reader = $self->_proc_reader($env);
     my $body = q{};
     while (length $body < $env->{'CONTENT_LENGTH'}) {
-        $reader->($body) or $self->_die(400, 'Bad Request');
+        $reader->($body) or $self->_croak(400, 'Bad Request');
     }
     return $body;
 }
@@ -74,7 +93,7 @@ sub scan_formdata {
     if ($method eq 'POST') {
         my $input = $env->{'psgi.input'};
         defined fileno $input or eval { $input->can('read') }
-            or $self->_die(500, 'Input handle is closed.');
+            or $self->_croak(500, 'Input handle is closed.');
         my $content_type = $env->{'CONTENT_TYPE'};
         if ($content_type =~ m{\Aapplication/x-www-form-urlencoded\b}msx) {
             $c->{body_param} = $self->_scan_urlencoded($self->read_body($env));
@@ -85,6 +104,13 @@ sub scan_formdata {
         }
     }
     return $c;
+}
+
+sub _croak {
+    my($self, $code, $message) = @_;
+    $self->{status} = $code || 500;
+    $self->{error} = $message || 'Internal Server Error';
+    croak "$code $message";
 }
 
 sub _scan_urlencoded {
@@ -100,23 +126,6 @@ sub _scan_urlencoded {
         push @param, map { _decode_uri($_) } @pair;
     }
     return \@param;
-}
-
-sub crlf {
-    my($self, @arg) = @_;
-    if (@arg) {
-        $self->{crlf} = $arg[0];
-    }
-    if (! $self->{crlf}) {
-        my $os = $^O || do {
-            require Config;
-            $Config::Config{'osname'}; ## no critic qw(PackageVars)
-        };
-        $self->{crlf} = $os =~ m/VMS/msxi? "\n"
-            : "\t" ne "\011" ? "\r\n"
-            : "\015\012";
-    }
-    return $self->{crlf};
 }
 
 sub _decode_uri {
@@ -155,24 +164,17 @@ sub _param_accessor {
         if (@arg == 1 && ! defined $arg[0]) {
             my $v = delete $self->{$attr}{$k};
             return if ! $v;
-            return wantarray ? @{$v} : $v->[0];
+            return wantarray ? @{$v} : $v->[-1];
         }
         elsif (@arg == 1 && ref $arg[0] eq 'ARRAY') {
-            $self->{$attr}{$k} = [@{$arg[0]}];
+            @{$self->{$attr}{$k}} = @{$arg[0]};
         }
         elsif (@arg) {
             push @{$self->{$attr}{$k}}, @arg;
         }
         return if ! exists $self->{$attr}{$k};
-        return wantarray ? @{$self->{$attr}{$k}} : $self->{$attr}{$k}[0];
+        return wantarray ? @{$self->{$attr}{$k}} : $self->{$attr}{$k}[-1];
     };
-}
-
-sub _die {
-    my($self, $code, $message) = @_;
-    $self->{status} = $code || 500;
-    $self->{error} = $message || 'Internal Server Error';
-    croak "$code $message";
 }
 
 sub _scan_multipart_formdata {
@@ -180,7 +182,7 @@ sub _scan_multipart_formdata {
     my $input = $env->{'psgi.input'};
     my $boundary =
         $env->{'CONTENT_TYPE'} =~ m{\bboundary=(?:"(.+?)"|([^;]+))}msx ? $+
-        : $self->_die(400, 'Bad Request');
+        : $self->_croak(400, 'Bad Request');
     my $crlf = $self->crlf;
     my $bd_size = (length $boundary) + 2 * (length "--$crlf");
     $boundary = quotemeta $boundary;
@@ -191,7 +193,7 @@ sub _scan_multipart_formdata {
     my $reader = $self->_proc_reader($env);
     my $setter = sub {};
     my $c = {
-        taint => (substr $0, 0, 0),
+        taint => q{},
         header => {},
         param => [],
         upload_info => [],
@@ -203,8 +205,9 @@ sub _scan_multipart_formdata {
                 $state = 2;
             }
             else {
-                length $body < $bd_size or $self->_die(400, 'Bad Request');
-                $reader->($body) or $self->_die(400, 'Bad Request');
+                length $body < $bd_size or $self->_croak(400, 'Bad Request');
+                $reader->($body) or $self->_croak(400, 'Bad Request');
+                $c->{taint} = substr $body, 0, 0;
             }
         }
         elsif ($state == 2) {
@@ -223,16 +226,16 @@ sub _scan_multipart_formdata {
             }
             elsif ($body =~ s/(\A[\t\x20]+(.*?)${crlf})//msx) {
                 $hd_size += length $1;
-                $hd_name ne q{} or $self->_die(400, 'Bad Request');
+                $hd_name ne q{} or $self->_croak(400, 'Bad Request');
                 $c->{header}{$hd_name} .= q{ } . $2;
             }
             elsif ($body =~ m{(.*?)${crlf}}msx) {
-                $self->_die(400, 'Bad Request');
+                $self->_croak(400, 'Bad Request');
             }
             else {
-                $reader->($body) or $self->_die(400, 'Bad Request');
+                $reader->($body) or $self->_croak(400, 'Bad Request');
             }
-            $hd_size <= $self->max_header or $self->_die(400, 'Bad Request');
+            $hd_size <= $self->max_header or $self->_croak(400, 'Bad Request');
         }
         elsif ($state == 3) {
             if ($body =~ s/\A(.*?)${crlf}--${boundary}(--)?${crlf}//msx) {
@@ -245,7 +248,7 @@ sub _scan_multipart_formdata {
                     $setter->(substr $body, 0, $size, q{});
                 }
                 if (length $body < $bd_size) {
-                    $reader->($body) or $self->_die(400, 'Bad Request');
+                    $reader->($body) or $self->_croak(400, 'Bad Request');
                 }
             }
         }
@@ -257,11 +260,11 @@ sub _proc_reader {
     my($self, $env) = @_;
     my $input = $env->{'psgi.input'};
     my $content_length = $env->{'CONTENT_LENGTH'};
-    defined $content_length or $self->_die(411, 'Length Required');
+    defined $content_length or $self->_croak(411, 'Length Required');
     {
         my $max = $self->max_post;
         my $limit = defined $max && $max >=0 ? $max : $content_length;
-        $content_length <= $limit or $self->_die(400, 'Bad Request');
+        $content_length <= $limit or $self->_croak(400, 'Bad Request');
     }
     my $block_size = $self->block_size;
     my $count = 0;
@@ -387,7 +390,7 @@ This module provides you to decode form-data for PSGI applications.
 
 =over
 
-=item C<< $q = new(env => $env, name => $value...) >>
+=item C<< $q = new($key => $value, ...) >>
 
 =item C<< $q->keyword_name($string) >>
 
@@ -452,7 +455,7 @@ L<IO::File>
 
 =head1 SEE ALSO
 
-L<CGI>, L<CGI::Simple>, L<PSGI>
+L<CGI>, L<CGI::Simple>, L<PSGI>, L<Hash::MultiValue>
 
 =head1 AUTHOR
 

@@ -6,21 +6,22 @@ use CGI::Hatchet;
 plan tests => 1 * blocks;
 
 filters {
-    input => [qw(eval test_scan_formdata)],
+    option => [qw(eval)],
+    env => [qw(eval)],
     expected => [qw(eval)],
 };
 
-run_is_deeply 'input' => 'expected';
-
-sub test_scan_formdata {
-    my($env) = @_;
-    return CGI::Hatchet->new->scan_formdata($env);
-}
+run {
+    my($block) = @_;
+    my $q = CGI::Hatchet->new($block->option);
+    is_deeply $q->scan_formdata($block->env), $block->expected, $block->name;
+};
 
 __END__
 
 === simple a & b & c
---- input
+--- option
+--- env
 {
     REQUEST_METHOD => 'GET',
     QUERY_STRING => 'a=A&b=B&c=C',
@@ -35,7 +36,8 @@ __END__
 }
 
 === simple a ; b ; c
---- input
+--- option
+--- env
 {
     REQUEST_METHOD => 'GET',
     QUERY_STRING => 'a=A;b=B;c=C',
@@ -50,7 +52,8 @@ __END__
 }
 
 === complex foo, bar, keyword
---- input
+--- option
+--- env
 {
     REQUEST_METHOD => 'GET',
     QUERY_STRING => 'foo=&bar===BAR=BAR==&=cow&baz&=&&',
@@ -65,7 +68,8 @@ __END__
 }
 
 === multi values
---- input
+--- option
+--- env
 {
     REQUEST_METHOD => 'GET',
     QUERY_STRING => 'a=A&a=B&a=C',
@@ -80,23 +84,26 @@ __END__
 }
 
 === multi keyword values
---- input
+--- option
+{keyword_name => 'a'}
+--- env
 {
     REQUEST_METHOD => 'GET',
-    QUERY_STRING => 'A&b=B&keyword=C&D',
+    QUERY_STRING => 'A&b=B&a=C&D',
 }
 --- expected
 {
     query_param => [
-        'keyword' => 'A',
+        'a' => 'A',
         'b' => 'B',
-        'keyword' => 'C',
-        'keyword' => 'D',
+        'a' => 'C',
+        'a' => 'D',
     ],
 }
 
 === decode uri
---- input
+--- option
+--- env
 {
     REQUEST_METHOD => 'GET',
     QUERY_STRING => '%61%62++%63d=%65%66++%67h',
