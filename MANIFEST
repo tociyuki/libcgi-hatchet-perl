@@ -7,7 +7,7 @@ t/00.load.t
 t/02.cookie.t
 t/03.query.t
 t/04.post.t
-t/05.leaktrace.t
+t/90.leaktrace.t
 t/perlcritic.t
 t/perlcriticrc
 t/pod-coverage.t

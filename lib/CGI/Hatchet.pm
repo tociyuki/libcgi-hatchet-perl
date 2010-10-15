@@ -194,7 +194,7 @@ sub _scan_multipart_formdata {
         taint => (substr $0, 0, 0),
         header => {},
         param => [],
-        upload => [],
+        upload_info => [],
     };
     my $state = 1;
     while ($state) {
@@ -250,7 +250,7 @@ sub _scan_multipart_formdata {
             }
         }
     }
-    return {body_param => $c->{param}, upload_info => $c->{upload}};
+    return {body_param => $c->{param}, upload_info => $c->{upload_info}};
 }
 
 sub _proc_reader {
@@ -285,31 +285,30 @@ sub _proc_reader {
 
 sub _proc_setter {
     my($self, $c) = @_;
-    my($taint, $header, $param, $upload) = @{$c}{qw(taint header param upload)};
-    my($name, $filename) = $self->_content_disposition($header);
+    my($name, $filename) = $self->_content_disposition($c->{header});
     my $enable_upload = $self->enable_upload;
-    $self = $c = undef;
+    $self = undef;
     defined $name or return sub{};
     if (! defined $filename) {
-        push @{$param}, $taint . $name, $taint;
-        return sub{ $param->[-1] .= shift };
+        push @{$c->{param}}, $c->{taint} . $name, $c->{taint};
+        return sub{ $c->{param}[-1] .= shift };
     }
     else {
         $enable_upload or return sub{};
         my $fh = IO::File->new_tmpfile or return sub{};
         binmode $fh;
-        push @{$param}, $taint . $name, $taint . $filename;
-        push @{$upload}, $taint . $filename, {
-            %{$header},
-            CONTENT_LENGTH => 0,
-            name => $taint . $name,
-            filename => $taint . $filename,
-            handle => $fh,
+        push @{$c->{param}}, $c->{taint} . $name, $c->{taint} . $filename;
+        push @{$c->{upload_info}}, $c->{taint} . $filename, {
+            %{$c->{header}},
+            'CONTENT_LENGTH' => 0,
+            'name' => $c->{taint} . $name,
+            'filename' => $c->{taint} . $filename,
+            'handle' => $fh,
         };
         return sub{
             my($part) = @_;
             print {$fh} $part;
-            $upload->[-1]{'CONTENT_LENGTH'} += length $part;
+            $c->{upload_info}[-1]{'CONTENT_LENGTH'} += length $part;
         };
     }
 }
@@ -419,7 +418,10 @@ It is comfortable that you treat the pair list through Hash::MultiValue.
 =item C<< $hashref = $q->scan_formdata($env) >>
 
 Scans formdata from the PSGI env.
-It returns a hash reference.
+It returns a hash reference that has keys, 'query_param', and/or
+'body_param', and/or 'upload_info'. The values for these keys
+are an array reference. Each array references include a pair
+list of parameter's names and values.
 
     is_deeply $q->scan_formdata($env), {
         query_param => [key0, value0, key1, value1, ...],
@@ -435,9 +437,9 @@ It returns a hash reference.
         ],
     }, 'scan_formdata';
 
-If you get upload_info, you must C<seek $fh, 0, 0> before
-reading it.
- 
+If you get upload_info, you must C<seek $handle_N, 0, 0> before
+read from it.
+
 =item C<< $body = $q->read_body($env) >>
 
 =item C<< $q->error >>
