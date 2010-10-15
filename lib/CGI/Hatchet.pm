@@ -11,33 +11,157 @@ use version; our $VERSION = '0.003';
 # $Revision$
 ## no critic qw(ProhibitPunctuationVars)
 
-our $DEFAULT_MAX_POST = 100 * 1024;
-
 __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
-        max_post enable_upload max_header block_size keyword_name error
-        request_method status content_type content_length body
+        keyword_name max_post enable_upload block_size max_header
+        error status body redirect fatals_to_browser
     ),
 );
-__PACKAGE__->_mk_attributes(
-    \&_param_accessor => qw(cookie header),
-);
+__PACKAGE__->_mk_attributes(\&_param_accessor => 'header');
 
 sub new {
     my($class, @arg) = @_;
+    my %opt = @arg == 1 && ref $arg[0] eq 'HASH' ? %{$arg[0]} : @arg;
+    my $content_type = delete $opt{content_type};
+    my $content_length = delete $opt{content_length};
+    delete $opt{redirect};
     my $self = bless {
-        max_post => $DEFAULT_MAX_POST,
+        max_post => 100 * 1024,
         enable_upload => 0,
         max_header => 1 * 1024,
         block_size => 4 * 1024,
         keyword_name => 'keyword',
         crlf => undef,
         status => 200,
+        header => {},
+        cookie => {},
+        body => q{},
+        redirect => undef,
+        fatals_to_browser => 0,
         (ref $class ? %{$class} : ()),
-        (@arg == 1 && ref $arg[0] eq 'HASH' ? %{$arg[0]} : @arg),
+        %opt,
         error => undef,
     }, ref $class ? ref $class : $class;
+    if ($content_type) {
+        $self->content_type($content_type);
+    }
+    if ($content_length) {
+        $self->content_length($content_length);
+    }
     return $self;
+}
+
+sub content_type   { return shift->header('Content-Type' => @_) }
+sub content_length { return shift->header('Content-Length' => @_) }
+
+sub finalize_psgi {
+    my($self, $env) = @_;
+    if (! $self->status) {
+        $self->status(200);
+    }
+    if (my $location = $self->redirect) {
+        $self->header('Location', $location);
+        if ($self->status !~ /\A3\d\d\z/msx) {
+            $self->status(302);
+        }
+    }
+    $self->finalize_cookie;
+    $self->finalize_error;
+    if ($self->status =~ /\A(?:1\d\d|[23]04)\z/msx) {
+        $self->body(q{});
+        $self->content_length(undef);
+    }
+    else {
+        if (! defined $self->body) {
+            $self->body(q{});
+        }
+        if (! defined $self->content_length) {
+            use bytes;
+            $self->content_length(bytes::length($self->body));
+        }
+    }
+    if ($env->{REQUEST_METHOD} eq 'HEAD') {
+        $self->body(q{});
+    }
+    ## no critic qw(ComplexMap)
+    return [
+        $self->status,
+        [map {
+            my $name = $_;
+            map {
+                ($name => join "\x0d\x0a ", split /(?:\r\n?|\n)+[\t\040]*/msx, $_);
+            } $self->header($name);
+        } $self->header],
+        [$self->body],
+    ];
+}
+
+sub cookie {
+    my($self, @arg) = @_;
+    return keys %{$self->{cookie}} if ! @arg;
+    my $k = shift @arg;
+    if (@arg == 1 && ! defined $arg[0]) {
+        return delete $self->{cookie}{$k};
+    }
+    if (@arg) {
+        $self->{cookie}{$k} = {name => $k, value => @arg};
+    }
+    return $self->{cookie}{$k};
+}
+
+sub finalize_cookie {
+    my($self) = @_;
+    my @a = qw(Sun Mon Tue Wed Thu Fri Sat);
+    my @b = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+    for my $key ($self->cookie) {
+        my $cookie = $self->cookie($key);
+        my @dough = (
+            _encode_uri($cookie->{name}) . q{=} . _encode_uri($cookie->{value}),
+            ($cookie->{domain} ? 'domain=' . _encode_uri($cookie->{domain}) : ()),
+            ($cookie->{path}) ? 'path=' . _encode_uri($cookie->{path}) : (),
+        );
+        if (defined $cookie->{expires}) {
+            my($s, $min, $h, $d, $mon, $y, $w) = gmtime $cookie->{expires};
+            push @dough, sprintf 'expires=%s, %02d-%s-%04d %02d:%02d:%02d GMT',
+                $a[$w], $d, $b[$mon], $y + 1900, $h, $min, $s;
+        }
+        push @dough,
+            ($cookie->{secure} ? 'secure' : ()),
+            ($cookie->{httponly} ? 'HttpOnly' : ());
+        $self->header('Set-Cookie' => join q{; }, @dough);
+    }
+    return $self;
+}
+
+sub finalize_error {
+    my($self) = @_;
+    return if ! $self->error;
+    $self->content_type('text/html; charset=UTF-8');
+    $self->header('Set-Cookie', undef);
+    $self->location(undef);
+    if ($self->status !~ m/\A[45]\d\d\z/msx) {
+        $self->status(500);
+    }
+    my $status = $self->status;
+    my $error = q{};
+    if ($self->fatals_to_browser) {
+        $error = $self->error;
+        my %special = (
+            q{&} => '&amp;', q{<} => '&lt;', q{>} => '&gt;',
+            q{"} => '&quot;', q{'} => '&#39;',
+        );
+        $error =~ s{([<>"'&])}{ $special{$1} }gemsx;
+    }
+    $self->body(<<"HTML");
+<html>
+<head><title>ERROR $status</title></head>
+<body>
+<h1>ERROR $status</h1>
+<pre>$error</pre>
+</body>
+</html>
+HTML
+    return;
 }
 
 sub crlf {
@@ -129,10 +253,24 @@ sub _scan_urlencoded {
 }
 
 sub _decode_uri {
-    my($s) = @_;
-    $s =~ tr/+/ /;
-    $s =~ s{%([0-9A-Fa-f]{2})}{ chr hex $1 }msxge;
-    return $s;
+    my($uri) = @_;
+    $uri =~ tr/+/ /;
+    $uri =~ s{%([0-9A-Fa-f]{2})}{ chr hex $1 }egmsx;
+    return $uri;
+}
+
+sub _encode_uri {
+    my($uri) = @_;
+    if (utf8::is_utf8($uri)) {
+        require Encode;
+        $uri = Encode::encode('utf-8', $uri);
+    }
+    $uri =~ s{
+        (?:(\%([0-9A-Fa-f]{2})?)|([^a-zA-Z0-9_~\-.=+\$,:\@/;?\&\#]))
+    }{
+        $2 ? $1 : $1 ? '%25' : sprintf '%%%02X', ord $3
+    }egmosx;
+    return $uri;
 }
 
 sub _mk_attributes {
@@ -404,11 +542,49 @@ This module provides you to decode form-data for PSGI applications.
 
 =item C<< $q->max_header($integer) >>
 
-=item C<< $q->request_method($string) >>
+=item C<< $q->status($digits) >>
+
+B<Response> status code.
 
 =item C<< $q->content_type($string) >>
 
+B<Response> header Content-Type.
+
 =item C<< $q->content_length($integer) >>
+
+B<Respons> header Content-Length.
+
+=item C<< $q->header($name => $value) >>
+
+B<Response> headers.
+
+=item C<< $q->cookie($name => $value, expires => time - 3600) >>
+
+B<Response> cookies.
+
+=item C<< $q->body($string) >>
+
+B<Response> body.
+
+=item C<< $q->redirect($uri) >>
+
+B<Response> redirect pointer.
+
+=item C<< $q->finalize_psgi($env) >>
+
+Creates a PSGI (Perl Server Gateway Interface) response.
+
+=item C<< $q->finalize_cookie >>
+
+Creates Set-Cookie headers.
+
+=item C<< $q->finalize_error >>
+
+Setup the status code and the headers related error.
+
+=item C<< $q->fatals_to_browser($bool) >>
+
+Enables reporting errors into the response body.
 
 =item C<< @pairs = $q->scan_cookie($env) >>
 
