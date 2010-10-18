@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More 'no_plan'; #tests => 33;
+use Test::Base tests => 139;
 BEGIN {
     require 't/lib/Test/Behaviour/Spec.pm';
     Test::Behaviour::Spec->import;
@@ -8,12 +8,31 @@ BEGIN {
 use CGI::Hatchet;
 
 {
-    describe 'CGI::Hatchet';
+    describe 'new';
 
-    it 'is a class.';
+    it 'is a constructor.';
 
         can_ok 'CGI::Hatchet', 'new';
         is ref CGI::Hatchet->new, 'CGI::Hatchet', spec;
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        is ref $q->new, 'CGI::Hatchet', spec;
+}
+
+{
+    describe 'new_response';
+
+    it 'is a constructor.';
+
+        can_ok 'CGI::Hatchet', 'new_response';
+        is ref CGI::Hatchet->new_response, 'CGI::Hatchet', spec;
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        is ref $q->new_response, 'CGI::Hatchet', spec;
 }
 
 {
@@ -37,7 +56,7 @@ use CGI::Hatchet;
 
         is $q->keyword_name, 'other name', spec;
     
-    it 'has the constructor-injected name.';
+    it 'is constructor-injectable.';
 
         my $q1 = CGI::Hatchet->new(keyword_name => 'injected');
         is $q1->keyword_name, 'injected', spec;
@@ -64,7 +83,7 @@ use CGI::Hatchet;
 
         is $q->max_post, 2 * $x, spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(max_post => 4 * $x);
         is $q1->max_post, 4 * $x, spec;
@@ -91,7 +110,7 @@ use CGI::Hatchet;
 
         is $q->enable_upload, ! $x, spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(enable_upload => 1);
         ok $q1->enable_upload, spec;
@@ -118,7 +137,7 @@ use CGI::Hatchet;
 
         is $q->block_size, 2 * $x, spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(block_size => 4 * $x);
         is $q1->block_size, 4 * $x, spec;
@@ -145,7 +164,7 @@ use CGI::Hatchet;
 
         is $q->crlf, 'other name', spec;
     
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(crlf => 'injected');
         is $q1->crlf, 'injected', spec;
@@ -172,7 +191,7 @@ use CGI::Hatchet;
 
         is $q->max_header, 2 * $x, spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(max_header => 4 * $x);
         is $q1->max_header, 4 * $x, spec;
@@ -186,7 +205,7 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'error';
 
-    it 'returns undef at init.';
+    it 'is undefined at init.';
 
         ok ! defined $q->error, spec;
 
@@ -196,6 +215,11 @@ use CGI::Hatchet;
             $q->_croak(500, 'Test exception');
         };
         is $q->error, 'Test exception', spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(error => 'Something wrong.');
+        is $q1->error, 'Something wrong.', spec;
 }
 
 {
@@ -206,23 +230,22 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'status';
 
-    it 'has a default three digits value.';
+    it 'is undefined at init.';
 
-        my $x = $q->status;
-        ok defined $x && ! ref $x && $x =~ /\A[0-9]{3}\z/msx, spec;
+        ok ! defined $q->status, spec;
 
     it 'changes value.';
 
-        is $q->status(2 * $x), 2 * $x, spec;
+        is $q->status('200'), '200', spec;
 
     it 'keeps last value.';
 
-        is $q->status, 2 * $x, spec;
+        is $q->status, '200', spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
-        my $q1 = CGI::Hatchet->new(status => $x + 1);
-        is $q1->status, $x + 1, spec;
+        my $q1 = CGI::Hatchet->new(status => '204');
+        is $q1->status, '204', spec;
 }
 
 {
@@ -233,7 +256,7 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'content_type';
 
-    it 'returns undef at init.';
+    it 'is undefined at init.';
 
         ok ! defined $q->content_type, spec;
 
@@ -245,7 +268,7 @@ use CGI::Hatchet;
 
         is $q->content_type, 'text/html', spec;
     
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(content_type => 'application/json');
         is $q1->content_type, 'application/json', spec;
@@ -259,7 +282,7 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'content_length';
 
-    it 'returns undef at init.';
+    it 'is undefined at init.';
 
         ok ! defined $q->content_length, spec;
 
@@ -271,10 +294,239 @@ use CGI::Hatchet;
 
         is $q->content_length, 256, spec;
     
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(content_length => 128);
         is $q1->content_length, 128, spec;
+}
+
+{
+    describe 'replace';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'replace';
+}
+
+{
+    describe 'param';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'param';
+
+    it 'returns empty list at init.';
+
+        is_deeply [$q->param], [], spec;
+
+    it 'sets a value to the given key.';
+
+        is_deeply [$q->param('Foo', 'foo0')], ['foo0'], spec;
+
+    it 'keeps a value of the key.';
+
+        is_deeply [$q->param('Foo')], ['foo0'], spec;
+
+    it 'push values into existence key.';
+
+        is_deeply [$q->param('Foo', 'foo1', 'foo2')],
+                  ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'returns last value in scalar context.';
+
+        is_deeply [scalar $q->param('Foo')], ['foo2'], spec;
+
+    it 'returns keys in calling without name.';
+
+        $q->param('Bar', 'bar');
+        $q->param('Baz', 'baz');
+        is_deeply {map { $_ => 1} $q->param},
+                  {map { $_ => 1} 'Foo', 'Bar', 'Baz'}, spec;
+
+    it 'clears values in key with undef.';
+
+        is_deeply [$q->param('Foo', undef)], ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'keeps no value after undef set.';
+
+        is_deeply [$q->param('Foo')], [], spec;
+
+    it 'is replaced by pairlist.';
+
+        $q->replace(param => ['a' => 'A', 'b' => 'B', 'a' => 'A1']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q->param},
+            'a' => [$q->param('a')],
+            'b' => [$q->param('b')],
+        }, {
+            'keys' => {map { $_ => 1 } 'a', 'b'},
+            'a' => ['A', 'A1'],
+            'b' => ['B'],
+        }, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(param => ['i' => 'n', 'j' => 'e', 'c' => 't']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q1->param},
+            'i' => [$q1->param('i')],
+            'j' => [$q1->param('j')],
+            'c' => [$q1->param('c')],
+        }, {
+            'keys' => {map { $_ => 1 } 'i', 'j', 'c'},
+            'i' => ['n'],
+            'j' => ['e'],
+            'c' => ['t'],
+        }, spec;
+}
+
+{
+    describe 'upload';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'upload';
+
+    it 'returns empty list at init.';
+
+        is_deeply [$q->upload], [], spec;
+
+    it 'sets a value to the given key.';
+
+        is_deeply [$q->upload('Foo', 'foo0')], ['foo0'], spec;
+
+    it 'keeps a value of the key.';
+
+        is_deeply [$q->upload('Foo')], ['foo0'], spec;
+
+    it 'push values into existence key.';
+
+        is_deeply [$q->upload('Foo', 'foo1', 'foo2')],
+                  ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'returns last value in scalar context.';
+
+        is_deeply [scalar $q->upload('Foo')], ['foo2'], spec;
+
+    it 'returns keys in calling without name.';
+
+        $q->upload('Bar', 'bar');
+        $q->upload('Baz', 'baz');
+        is_deeply {map { $_ => 1} $q->upload},
+                  {map { $_ => 1} 'Foo', 'Bar', 'Baz'}, spec;
+
+    it 'clears values in key with undef.';
+
+        is_deeply [$q->upload('Foo', undef)], ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'keeps no value after undef set.';
+
+        is_deeply [$q->upload('Foo')], [], spec;
+
+    it 'is replaced by pairlist.';
+
+        $q->replace(upload => ['a' => 'A', 'b' => 'B', 'a' => 'A1']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q->upload},
+            'a' => [$q->upload('a')],
+            'b' => [$q->upload('b')],
+        }, {
+            'keys' => {map { $_ => 1 } 'a', 'b'},
+            'a' => ['A', 'A1'],
+            'b' => ['B'],
+        }, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(upload => ['i' => 'n', 'j' => 'e', 'c' => 't']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q1->upload},
+            'i' => [$q1->upload('i')],
+            'j' => [$q1->upload('j')],
+            'c' => [$q1->upload('c')],
+        }, {
+            'keys' => {map { $_ => 1 } 'i', 'j', 'c'},
+            'i' => ['n'],
+            'j' => ['e'],
+            'c' => ['t'],
+        }, spec;
+}
+
+{
+    describe 'request_cookie';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'request_cookie';
+
+    it 'returns empty list at init.';
+
+        is_deeply [$q->request_cookie], [], spec;
+
+    it 'sets a value to the given key.';
+
+        is_deeply [$q->request_cookie('Foo', 'foo0')], ['foo0'], spec;
+
+    it 'keeps a value of the key.';
+
+        is_deeply [$q->request_cookie('Foo')], ['foo0'], spec;
+
+    it 'push values into existence key.';
+
+        is_deeply [$q->request_cookie('Foo', 'foo1', 'foo2')],
+                  ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'returns last value in scalar context.';
+
+        is_deeply [scalar $q->request_cookie('Foo')], ['foo2'], spec;
+
+    it 'returns keys in calling without name.';
+
+        $q->request_cookie('Bar', 'bar');
+        $q->request_cookie('Baz', 'baz');
+        is_deeply {map { $_ => 1} $q->request_cookie},
+                  {map { $_ => 1} 'Foo', 'Bar', 'Baz'}, spec;
+
+    it 'clears values in key with undef.';
+
+        is_deeply [$q->request_cookie('Foo', undef)], ['foo0', 'foo1', 'foo2'], spec;
+
+    it 'keeps no value after undef set.';
+
+        is_deeply [$q->request_cookie('Foo')], [], spec;
+
+    it 'is replaced by pairlist.';
+
+        $q->replace(request_cookie => ('a' => 'A', 'b' => 'B', 'a' => 'A1'));
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q->request_cookie},
+            'a' => [$q->request_cookie('a')],
+            'b' => [$q->request_cookie('b')],
+        }, {
+            'keys' => {map { $_ => 1 } 'a', 'b'},
+            'a' => ['A', 'A1'],
+            'b' => ['B'],
+        }, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(request_cookie => [
+            'i' => 'n', 'j' => 'e', 'c' => 't']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q1->request_cookie},
+            'i' => [$q1->request_cookie('i')],
+            'j' => [$q1->request_cookie('j')],
+            'c' => [$q1->request_cookie('c')],
+        }, {
+            'keys' => {map { $_ => 1 } 'i', 'j', 'c'},
+            'i' => ['n'],
+            'j' => ['e'],
+            'c' => ['t'],
+        }, spec;
 }
 
 {
@@ -297,32 +549,74 @@ use CGI::Hatchet;
 
         is_deeply [$q->header('Foo')], ['foo0'], spec;
 
-    it 'adds values into existence key.';
+    it 'replaces existence key.';
 
         is_deeply [$q->header('Foo', 'foo1', 'foo2')],
-                  ['foo0', 'foo1', 'foo2'], spec;
-
-    it 'keeps values all of the key.';
-
-        is_deeply [$q->header('Foo')], ['foo0', 'foo1', 'foo2'], spec;
+                  ['foo1'], spec;
 
     it 'returns last value in scalar context.';
 
-        is_deeply [scalar $q->header('Foo')], ['foo2'], spec;
-
-    it 'replaces values with arrayref.';
-    
-        $q->header('Foo', 'foo0', 'foo1', 'foo2');
-        $q->header('Foo', ['Foo0', 'Foo1']);
-        is_deeply [$q->header('Foo')], ['Foo0', 'Foo1'], spec;
+        is_deeply [scalar $q->header('Foo')], ['foo1'], spec;
 
     it 'clears values in key with undef.';
 
-        is_deeply [$q->header('Foo', undef)], ['Foo0', 'Foo1'], spec;
+        is_deeply [$q->header('Foo', undef)], ['foo1'], spec;
 
     it 'keeps no value after undef set.';
 
         is_deeply [$q->header('Foo')], [], spec;
+
+    it 'sets a value to the Set-Cookie.';
+
+        is_deeply [$q->header('Set-Cookie', 'c0=A')], ['c0=A'], spec;
+
+    it 'adds values existence Set-Cookie.';
+
+        is_deeply [$q->header('Set-Cookie', 'c1=B', 'c2=C')],
+                  ['c0=A', 'c1=B', 'c2=C'], spec;
+
+    it 'replaces Set-Cookie values with arrayref.';
+
+        $q->header('Set-Cookie', ['C0=a', 'C1=b']);
+        is_deeply [$q->header('Set-Cookie')], ['C0=a', 'C1=b'], spec;
+
+    it 'clears values in key with undef.';
+
+        is_deeply [$q->header('Set-Cookie', undef)], ['C0=a', 'C1=b'], spec;
+
+    it 'keeps no value after undef set.';
+
+        is_deeply [$q->header('Set-Cookie')], [], spec;
+
+    it 'is replaced by pairlist.';
+
+        $q->replace(header => (
+                'A' => 'a0', 'A' => 'a1',
+                'Set-Cookie' => 'u=', 'Set-Cookie' => 'k=v'));
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q->header},
+            'A' => [$q->header('A')],
+            'Set-Cookie' => [$q->header('Set-Cookie')],
+        }, {
+            'keys' => {map { $_ => 1 } 'A', 'Set-Cookie'},
+            'A' => ['a1'],
+            'Set-Cookie' => ['u=', 'k=v'],
+        }, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(header => [
+                'A' => 'a0', 'A' => 'a1',
+                'Set-Cookie' => 'u=', 'Set-Cookie' => 'k=v']);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q1->header},
+            'A' => [$q1->header('A')],
+            'Set-Cookie' => [$q1->header('Set-Cookie')],
+        }, {
+            'keys' => {map { $_ => 1 } 'A', 'Set-Cookie'},
+            'A' => ['a1'],
+            'Set-Cookie' => ['u=', 'k=v'],
+        }, spec;
 }
 
 {
@@ -365,6 +659,39 @@ use CGI::Hatchet;
     it 'has only bar after delete foo.';
 
         is_deeply [$q->cookie], ['bar'], spec;
+
+    it 'sets a content by hash.';
+
+        is_deeply $q->cookie('foo' => {name => 'foo0', value => ''}),
+                  {name => 'foo0', value => ''}, spec;
+
+    it 'is replaced by pairlist.';
+
+        $q->replace(cookie => [
+                'a' => 'a0', 'b' => {name => 'b', value => 'b0'}]);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q->cookie},
+            'a' => [$q->cookie('a')],
+            'b' => [$q->cookie('b')],
+        }, {
+            'keys' => {map { $_ => 1 } 'a', 'b'},
+            'a' => [{name => 'a', value => 'a0'}],
+            'b' => [{name => 'b', value => 'b0'}],
+        }, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(cookie => [
+                'a' => 'a0', 'b' => {name => 'b', value => 'b0'}]);
+        is_deeply {
+            'keys' => {map { $_ => 1 } $q1->cookie},
+            'a' => [$q1->cookie('a')],
+            'b' => [$q1->cookie('b')],
+        }, {
+            'keys' => {map { $_ => 1 } 'a', 'b'},
+            'a' => [{name => 'a', value => 'a0'}],
+            'b' => [{name => 'b', value => 'b0'}],
+        }, spec;
 }
 
 {
@@ -375,10 +702,9 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'body';
 
-    it 'returns empty string at init.';
+    it 'is undefined at init.';
 
-        my $x = $q->body;
-        ok defined $x && $x eq q{}, spec;
+        ok ! defined $q->body, spec;
 
     it 'changes value.';
 
@@ -388,36 +714,10 @@ use CGI::Hatchet;
 
         is $q->body, '<html></html>', spec;
     
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(body => '<html></html>');
         is $q1->body, '<html></html>', spec;
-}
-
-{
-    describe 'redirect';
-
-    it 'is an attribute of CGI::Hatchet.';
-
-        my $q = CGI::Hatchet->new;
-        can_ok $q, 'redirect';
-
-    it 'is undefinded at init.';
-
-        ok ! defined $q->redirect, spec;
-
-    it 'changes value.';
-
-        is $q->redirect('/frontpage'), '/frontpage', spec;
-
-    it 'keeps last value.';
-
-        is $q->redirect, '/frontpage', spec;
-    
-    it 'drops the constructor-injected value.';
-    
-        my $q1 = CGI::Hatchet->new(redirect => '/frontpage');
-        ok ! defined $q1->redirect, spec;
 }
 
 {
@@ -441,16 +741,43 @@ use CGI::Hatchet;
 
         is $q->fatals_to_browser, ! $x, spec;
 
-    it 'has the constructor-injected value.';
+    it 'is constructor-injectable.';
     
         my $q1 = CGI::Hatchet->new(fatals_to_browser => 1);
         ok $q1->fatals_to_browser, spec;
 }
 
 {
+    describe 'error_page_builder';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'error_page_builder';
+
+    it 'is undefined on init.';
+
+        ok ! defined $q->error_page_builder, spec;
+
+    it 'changes value.';
+
+        my $builder = sub{};
+        is $q->error_page_builder($builder), $builder, spec;
+
+    it 'keeps last value.';
+
+        is $q->error_page_builder, $builder, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(error_page_builder => $builder);
+        is $q1->error_page_builder, $builder, spec;
+}
+
+{
     describe 'read_body';
 
-    it 'can be done with CGI::Hatchet instance.';
+    it 'is an instance method.';
 
         my $q = CGI::Hatchet->new;
         can_ok $q, 'read_body';
@@ -459,20 +786,67 @@ use CGI::Hatchet;
 {
     describe 'scan_cookie';
 
-    it 'can be done with CGI::Hatchet instance.';
+    it 'is an instance method.';
 
         my $q = CGI::Hatchet->new;
         can_ok $q, 'scan_cookie';
-        # t/02.cookie.t for detail behaviours.
+        # t/02.scan_cookie.t for detail behaviours.
 }
 
 {
     describe 'scan_formdata';
 
-    it 'can be done with CGI::Hatchet instance.';
+    it 'is an instance method.';
 
         my $q = CGI::Hatchet->new;
         can_ok $q, 'scan_formdata';
         # t/03.query.t and t/04.post.t for detail behaviours.
+}
+
+{
+    describe 'redirect';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'redirect';
+
+    it 'changes location.';
+
+        $q->redirect('/frontpage');
+        ok $q->header('Location') eq '/frontpage' && $q->status eq '303', spec; 
+
+    it 'changes location and status.';
+
+        $q->redirect('/frontpage', '301');
+        ok $q->header('Location') eq '/frontpage' && $q->status eq '301', spec; 
+}
+
+{
+    describe 'finalize_cookie';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'finalize_cookie';
+        # t/10.set_cookie.t for detail behaviours.
+}
+
+{
+    describe 'normalize';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'normalize';
+}
+
+{
+    describe 'finalize';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'finalize';
 }
 

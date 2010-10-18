@@ -2,10 +2,10 @@ package CGI::Hatchet;
 use 5.008002;
 use strict;
 use warnings;
-use IO::File;
 use Carp;
+use IO::File;
 
-use version; our $VERSION = '0.003';
+use version; our $VERSION = '0.004';
 
 # $Id$
 # $Revision$
@@ -14,39 +14,78 @@ use version; our $VERSION = '0.003';
 __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
         keyword_name max_post enable_upload block_size max_header
-        error status body redirect fatals_to_browser
+        fatals_to_browser error_page_builder error status body
     ),
 );
-__PACKAGE__->_mk_attributes(\&_param_accessor => 'header');
+__PACKAGE__->_mk_attributes(
+    \&_param_accessor => qw(header param upload request_cookie),
+);
 
 sub new {
     my($class, @arg) = @_;
-    my %opt = @arg == 1 && ref $arg[0] eq 'HASH' ? %{$arg[0]} : @arg;
-    my $content_type = delete $opt{content_type};
-    my $content_length = delete $opt{content_length};
-    delete $opt{redirect};
     my $self = bless {
+        keyword_name => 'keyword',
         max_post => 100 * 1024,
         enable_upload => 0,
-        max_header => 1 * 1024,
         block_size => 4 * 1024,
-        keyword_name => 'keyword',
+        max_header => 1 * 1024,
+        fatals_to_browser => 0,
+        error_page_builder => undef,
         crlf => undef,
-        status => 200,
+        (ref $class ? %{$class} : ()),
+        error => undef,
+        status => undef,
+        body => undef,
         header => {},
         cookie => {},
-        body => q{},
-        redirect => undef,
+        param => {},
+        upload => {},
+        request_cookie => {},
+    }, ref $class ? ref $class : $class;
+    my $opt = @arg == 1 && ref $arg[0] eq 'HASH' ? $arg[0] : {@arg};
+    while (my($k, $v) = each %{$opt}) {
+        $self->replace($k => $v);
+    }
+    return $self;
+}
+
+sub new_response {
+    my($class, $rc, $headers, $content) = @_;
+    my $self = bless {
+        status => undef,
+        header => {},
+        cookie => {},
+        body => undef,
         fatals_to_browser => 0,
-        (ref $class ? %{$class} : ()),
-        %opt,
+        error_page_builder => undef,
         error => undef,
     }, ref $class ? ref $class : $class;
-    if ($content_type) {
-        $self->content_type($content_type);
+    if (ref $class) {
+        my @extend = qw(
+            error status fatals_to_browser error_page_builder crlf
+        );
+        for my $attr (@extend) {
+            $self->$attr($class->$attr);
+        }
+        for my $k ($class->header) {
+            $self->header($k => $class->header($k));
+        }
+        for my $k ($class->cookie) {
+            $self->cookie($k => $class->cookie($k));
+        }
+        $self->body(
+            ref $class->body eq 'ARRAY' ? [@{$class->body}] : $class->body,
+        );
     }
-    if ($content_length) {
-        $self->content_length($content_length);
+    if (defined $rc && ! $self->error) {
+        $self->status($rc);
+    }
+    if (ref $headers eq 'ARRAY') {
+        $self->replace(header => $headers);
+    }
+    if (defined $content) {
+        $self->content_length(undef);
+        $self->body($content);
     }
     return $self;
 }
@@ -54,35 +93,36 @@ sub new {
 sub content_type   { return shift->header('Content-Type' => @_) }
 sub content_length { return shift->header('Content-Length' => @_) }
 
-sub finalize_psgi {
-    my($self, $env) = @_;
-    if (! $self->status) {
-        $self->status(200);
-    }
-    if (my $location = $self->redirect) {
-        $self->header('Location', $location);
-        if ($self->status !~ /\A3\d\d\z/msx) {
-            $self->status(302);
+sub cookie {
+    my($self, @arg) = @_;
+    return keys %{$self->{cookie}} if ! @arg;
+    my $k = shift @arg;
+    if (@arg) {
+        if (@arg == 1 && ! defined $arg[0]) {
+            return delete $self->{cookie}{$k};
+        }
+        if (@arg == 1 && ref $arg[0] eq 'HASH') {
+            $self->{cookie}{$k} = { %{$arg[0]} };
+        }
+        else {
+            $self->{cookie}{$k} = {name => $k, value => @arg};
         }
     }
-    $self->finalize_cookie;
-    $self->finalize_error;
-    if ($self->status =~ /\A(?:1\d\d|[23]04)\z/msx) {
-        $self->body(q{});
-        $self->content_length(undef);
+    return $self->{cookie}{$k};
+}
+
+sub redirect {
+    my($self, @arg) = @_;
+    if (@arg) {
+        $self->header('Location' => $arg[0]);
+        $self->status(@arg > 1 ? $arg[1] : '303');
     }
-    else {
-        if (! defined $self->body) {
-            $self->body(q{});
-        }
-        if (! defined $self->content_length) {
-            use bytes;
-            $self->content_length(bytes::length($self->body));
-        }
-    }
-    if ($env->{REQUEST_METHOD} eq 'HEAD') {
-        $self->body(q{});
-    }
+    return $self->header('Location');
+}
+
+sub finalize {
+    my($self) = @_;
+    my $body = $self->body;
     ## no critic qw(ComplexMap)
     return [
         $self->status,
@@ -92,21 +132,9 @@ sub finalize_psgi {
                 ($name => join "\x0d\x0a ", split /(?:\r\n?|\n)+[\t\040]*/msx, $_);
             } $self->header($name);
         } $self->header],
-        [$self->body],
+        # similar as Plack::Response except for unchecking overload q{""}.
+        ! defined $body ? [] : ! ref $body ? [$body] : $body,
     ];
-}
-
-sub cookie {
-    my($self, @arg) = @_;
-    return keys %{$self->{cookie}} if ! @arg;
-    my $k = shift @arg;
-    if (@arg == 1 && ! defined $arg[0]) {
-        return delete $self->{cookie}{$k};
-    }
-    if (@arg) {
-        $self->{cookie}{$k} = {name => $k, value => @arg};
-    }
-    return $self->{cookie}{$k};
 }
 
 sub finalize_cookie {
@@ -133,35 +161,78 @@ sub finalize_cookie {
     return $self;
 }
 
-sub finalize_error {
-    my($self) = @_;
-    return if ! $self->error;
-    $self->content_type('text/html; charset=UTF-8');
-    $self->header('Set-Cookie', undef);
-    $self->location(undef);
-    if ($self->status !~ m/\A[45]\d\d\z/msx) {
-        $self->status(500);
+sub normalize {
+    my($self, $env) = @_;
+    if (! $self->status) {
+        $self->error(join ".\n", 'Undefined Status', ($self->error || ()));
     }
+    if ($self->error) {
+        if (! $self->status || $self->status !~ m/\A[45][0-9][0-9]\z/msx) {
+            $self->status(500);
+        }
+        $self->header('Set-Cookie', undef);
+        $self->header('Location', undef);
+        $self->content_length(undef);
+        $self->body(undef);
+        if (ref $self->error_page_builder eq 'CODE') {
+            $self->error_page_builder->($self);
+        }
+        else {
+            $self->_build_default_error_page;
+        }
+    }
+    else {
+        if ($env->{SERVER_PROTOCOL} eq 'HTTP/1.0') {
+            if ($self->status =~ m/\A30[37]\z/msx) {
+                $self->status('302');
+            }
+        }
+    }
+    if ($self->status =~ /\A(?:1[0-9][0-9]|[23]04)\z/msx) {
+        $self->content_length(undef);
+        $self->body(undef);
+    }
+    elsif (! defined $self->content_length) {
+        if (! ref $self->body && defined $self->body) {
+            use bytes;
+            $self->content_length(bytes::length($self->body));
+        }
+        elsif (ref $self->body eq 'ARRAY') {
+            use bytes;
+            $self->content_length(bytes::length(join q{}, @{$self->body}));
+        }
+    }
+    if ($env->{REQUEST_METHOD} eq 'HEAD') {
+        $self->body(undef);
+    }
+    return $self;
+}
+
+sub _build_default_error_page {
+    my($self) = @_;
+    $self->content_type('text/html; charset=UTF-8');
     my $status = $self->status;
-    my $error = q{};
+    my $content = q{};
     if ($self->fatals_to_browser) {
-        $error = $self->error;
+        my $error = $self->error;
         my %special = (
             q{&} => '&amp;', q{<} => '&lt;', q{>} => '&gt;',
             q{"} => '&quot;', q{'} => '&#39;',
         );
         $error =~ s{([<>"'&])}{ $special{$1} }gemsx;
+        $content = qq{<pre>$error</pre>\n};
     }
     $self->body(<<"HTML");
 <html>
-<head><title>ERROR $status</title></head>
+<head>
+<title>ERROR $status</title>
+</head>
 <body>
 <h1>ERROR $status</h1>
-<pre>$error</pre>
-</body>
+$content</body>
 </html>
 HTML
-    return;
+    return $self;
 }
 
 sub crlf {
@@ -237,21 +308,6 @@ sub _croak {
     croak "$code $message";
 }
 
-sub _scan_urlencoded {
-    my($self, $data) = @_;
-    defined $data or return [];
-    my @param;
-    for (split /[&;]/msx, $data) {
-        my @pair = split /=/msx, $_, 2;
-        if (@pair == 1) {
-            unshift @pair, $self->keyword_name; # 'k'
-        }
-        next if @pair < 2 || $pair[0] eq q{}; # '', '=v'
-        push @param, map { _decode_uri($_) } @pair;
-    }
-    return \@param;
-}
-
 sub _decode_uri {
     my($uri) = @_;
     $uri =~ tr/+/ /;
@@ -271,6 +327,22 @@ sub _encode_uri {
         $2 ? $1 : $1 ? '%25' : sprintf '%%%02X', ord $3
     }egmosx;
     return $uri;
+}
+
+sub replace {
+    my($self, $attr, @arg) = @_;
+    if (ref $self->{$attr} eq 'HASH') {
+        %{$self->{$attr}} = ();
+        my $a = @arg == 1 && ref $arg[0] eq 'ARRAY' ? $arg[0] : \@arg;
+        for (0 .. -1 + int @{$a} / 2) {
+            my $i = $_ * 2;
+            $self->$attr($a->[$i] => $a->[$i + 1]);
+        }
+    }
+    else {
+        $self->$attr(@arg);
+    }
+    return $self;
 }
 
 sub _mk_attributes {
@@ -299,20 +371,40 @@ sub _param_accessor {
         my($self, @arg) = @_;
         @arg or return keys %{$self->{$attr}};
         my $k = shift @arg;
-        if (@arg == 1 && ! defined $arg[0]) {
-            my $v = delete $self->{$attr}{$k};
-            return if ! $v;
-            return wantarray ? @{$v} : $v->[-1];
-        }
-        elsif (@arg == 1 && ref $arg[0] eq 'ARRAY') {
-            @{$self->{$attr}{$k}} = @{$arg[0]};
-        }
-        elsif (@arg) {
-            push @{$self->{$attr}{$k}}, @arg;
+        if (@arg) {
+            if (@arg == 1 && ! defined $arg[0]) {
+                my $v = delete $self->{$attr}{$k};
+                return if ! $v;
+                return wantarray ? @{$v} : $v->[-1];
+            }
+            if ($attr eq 'header' && lc $k ne 'set-cookie') {
+                $self->{$attr}{$k}[0] = $arg[0];
+            }
+            elsif (@arg == 1 && ref $arg[0] eq 'ARRAY') {
+                @{$self->{$attr}{$k}} = @{$arg[0]};
+            }
+            else {
+                push @{$self->{$attr}{$k}}, @arg;
+            }
         }
         return if ! exists $self->{$attr}{$k};
         return wantarray ? @{$self->{$attr}{$k}} : $self->{$attr}{$k}[-1];
     };
+}
+
+sub _scan_urlencoded {
+    my($self, $data) = @_;
+    defined $data or return [];
+    my @param;
+    for (split /[&;]/msx, $data) {
+        my @pair = split /=/msx, $_, 2;
+        if (@pair == 1) {
+            unshift @pair, $self->keyword_name; # 'k'
+        }
+        next if @pair < 2 || $pair[0] eq q{}; # '', '=v'
+        push @param, map { _decode_uri($_) } @pair;
+    }
+    return \@param;
 }
 
 sub _scan_multipart_formdata {
@@ -333,7 +425,7 @@ sub _scan_multipart_formdata {
     my $c = {
         taint => q{},
         header => {},
-        param => [],
+        body_param => [],
         upload_info => [],
     };
     my $state = 1;
@@ -391,7 +483,7 @@ sub _scan_multipart_formdata {
             }
         }
     }
-    return {body_param => $c->{param}, upload_info => $c->{upload_info}};
+    return {body_param => $c->{body_param}, upload_info => $c->{upload_info}};
 }
 
 sub _proc_reader {
@@ -431,14 +523,14 @@ sub _proc_setter {
     $self = undef;
     defined $name or return sub{};
     if (! defined $filename) {
-        push @{$c->{param}}, $c->{taint} . $name, $c->{taint};
-        return sub{ $c->{param}[-1] .= shift };
+        push @{$c->{body_param}}, $c->{taint} . $name, $c->{taint};
+        return sub{ $c->{body_param}[-1] .= shift };
     }
     else {
         $enable_upload or return sub{};
         my $fh = IO::File->new_tmpfile or return sub{};
         binmode $fh;
-        push @{$c->{param}}, $c->{taint} . $name, $c->{taint} . $filename;
+        push @{$c->{body_param}}, $c->{taint} . $name, $c->{taint} . $filename;
         push @{$c->{upload_info}}, $c->{taint} . $filename, {
             %{$c->{header}},
             'CONTENT_LENGTH' => 0,
@@ -472,11 +564,11 @@ __END__
 
 =head1 NAME
 
-CGI::Hatchet - A form decoder for PSGI applications like as CGI.pm 
+CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.003
+0.004
 
 =head1 SYNOPSIS
 
@@ -512,6 +604,16 @@ CGI::Hatchet - A form decoder for PSGI applications like as CGI.pm
             }
         }
     }
+    # you may access this module's param, upload, and upload_info attribute.
+    $q->replace(param => $ph->{body_param});
+    for (0 .. -1 + int @{$qh->{upload_info}} / 2) {
+        my $i = $_ * 2;
+        my $fh = delete $qh->{upload_info}[$i + 1]{handle};
+        seek $fh, 0, 0;
+        $q->upload($qh->{upload_info}[$i], $fh);
+    }
+    my $filename = $q->param('up');
+    my $upload_body = File::Slurp::read_file($q->upload($filename));
     # fetch cookies
     my $cookies = Hash::MultiValue->new($q->scan_cookie($env));
     for my $name (keys %{$cookies}) {
@@ -519,74 +621,109 @@ CGI::Hatchet - A form decoder for PSGI applications like as CGI.pm
             print "$name: $value\n";
         }
     }
+    # you may access this module'srequest_cookie attribute.
+    $q->replace(request_cookie => $q->scan_cookie($env));
+    for my $name ($q->request_cookie) {
+        for my $value ($q->request_cookie($name)) {
+            print "$name: $value\n";
+        }
+    }    
+    # setup response
+    my $res = $q->new_response(
+        '200',
+        ['Content-Type' => 'text/plain'],
+        ['Hello, ', 'World!'],
+    );
+    # set cookie
+    $res->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
+    # add header
+    $res->header('Etag' => q{"iU8ADFlEtdad3a"});
+    # replace body
+    $res->body('Hello all.');
+    # redirect
+    $res->redirect('http://another.net/', '303');
+    # write Set-Cookie header from cookie attribute
+    $res->finalize_cookie;
+    # normalize status code, headers, and body.
+    $res->normalize($env);
+    # create PSGI response
+    my $psgi_res = $res->finalize;
 
 =head1 DESCRIPTION
 
-This module provides you to decode form-data for PSGI applications.
+This module provides you to formdata decoder and response
+for PSGI applications.
 
 =head1 METHODS
 
 =over
 
-=item C<< $q = new($key => $value, ...) >>
+=item C<< new($key => $value, ...) >>
 
-=item C<< $q->keyword_name($string) >>
+=item C<< new_response($rc, $headers, $content) >>
 
-=item C<< $q->max_post($integer) >>
+=item C<< keyword_name($string) >>
 
-=item C<< $q->enable_upload($bool) >>
+=item C<< max_post($integer) >>
 
-=item C<< $q->block_size($integer) >>
+=item C<< enable_upload($bool) >>
 
-=item C<< $q->crlf($string) >>
+=item C<< block_size($integer) >>
 
-=item C<< $q->max_header($integer) >>
+=item C<< crlf($string) >>
 
-=item C<< $q->status($digits) >>
+=item C<< max_header($integer) >>
+
+=item C<< status($digits) >>
 
 B<Response> status code.
 
-=item C<< $q->content_type($string) >>
+=item C<< content_type($string) >>
 
 B<Response> header Content-Type.
 
-=item C<< $q->content_length($integer) >>
+=item C<< content_length($integer) >>
 
 B<Respons> header Content-Length.
 
-=item C<< $q->header($name => $value) >>
+=item C<< header($name => $value) >>
 
 B<Response> headers.
 
-=item C<< $q->cookie($name => $value, expires => time - 3600) >>
+=item C<< cookie($name => $value, expires => time - 3600) >>
 
 B<Response> cookies.
 
-=item C<< $q->body($string) >>
+=item C<< body($string) >>
 
 B<Response> body.
 
-=item C<< $q->redirect($uri) >>
+=item C<< redirect($uri) >>
 
 B<Response> redirect pointer.
 
-=item C<< $q->finalize_psgi($env) >>
+=item C<< finalize >>
 
 Creates a PSGI (Perl Server Gateway Interface) response.
 
-=item C<< $q->finalize_cookie >>
+=item C<< normalize($env) >>
+
+Takes status code, headers, and body under the care of
+HTTP response rules.
+
+=item C<< finalize_cookie >>
 
 Creates Set-Cookie headers.
 
-=item C<< $q->finalize_error >>
-
-Setup the status code and the headers related error.
-
-=item C<< $q->fatals_to_browser($bool) >>
+=item C<< fatals_to_browser($bool) >>
 
 Enables reporting errors into the response body.
 
-=item C<< @pairs = $q->scan_cookie($env) >>
+=item C<< error_page_builder($coderef) >>
+
+Sets custom error page builder.
+
+=item C<< scan_cookie($env) >>
 
 Scans requested cookies from the PSGI env.
 It returns a pair list of cookie's names and values.
@@ -594,7 +731,14 @@ It is comfortable that you treat the pair list through Hash::MultiValue.
 
     $cookies = Hash::MultiValue->new($q->scan_cookie($env));
 
-=item C<< $hashref = $q->scan_formdata($env) >>
+or using request_cookie attribute.
+
+    $q->replace(request_cookie, $q->scan_cookie($env));
+    for my $k ($q->request_cookie) {
+        my $v = $q->request_cookie($k);
+    }
+
+=item C<< scan_formdata($env) >>
 
 Scans formdata from the PSGI env.
 It returns a hash reference that has keys, 'query_param', and/or
@@ -619,9 +763,69 @@ list of parameter's names and values.
 If you get upload_info, you must C<seek $handle_N, 0, 0> before
 read from it.
 
-=item C<< $body = $q->read_body($env) >>
+=item C<< read_body($env) >>
 
-=item C<< $q->error >>
+Reads entire content of the request.
+
+=item C<< replace($attr_name => value) >>
+
+Replaces the attribute contents.
+
+    $q->replace('content_type' => 'text/html');
+    $q->replace('enable_upload' => 0);
+    $q->replace('param' => ('a' => 'A', 'b' => 'B', 'a' => 'C'));
+    $q->replace('param' => ['a' => 'A', 'b' => 'B', 'a' => 'C']);
+    $q->replace('cookie' => ('a' => {name => 'a', value => 'A'}));
+
+=item C<< param($name) >>
+
+Attribute for accessing formdata parameters similiar as CGI's one.
+Before use this attribute, you must set scan_formdata result manually.
+
+    $qh = $q->scan_formdata($env);
+    $q->replace(
+        param => @{$qh->{query_param}}, @{$qh->{body_param} || []},
+    );
+    for my $key ($q->param) {
+        my $last_value = $q->param($key);
+        my @values = $q->param($key);
+    }
+    $q->param($key, [@replace_values]);
+    $q->param($key, @push_values);
+    $q->param($key, undef); # delete $key and its values.
+
+=item C<< upload($name) >>
+
+Attribute for accessing formdata uploads similiar as CGI's one.
+Before use this attribute, you must set scan_formdata result manually.
+
+    $qh = $q->scan_formdata($env);
+    $q->replace('upload'); # clear
+    for (0 .. -1 + int @{$qh->{upload_info}} / 2) {
+        my $i = $_ * 2;
+        my $fh = delete $qh->{upload_info}[$i + 1]{handle};
+        seek $fh, 0, 0;
+        $q->upload($qh->{upload_info}[$i], $fh);
+    }
+    my $upload_body = File::Slurp::read_file($q->upload($upload_filename));
+
+=item C<< request_cookie($name) >>
+
+Attribute for accessing formdata parameters similiar as CGI's param.
+Before use this attribute, you must set scan_formdata result manually.
+
+    $q->replace(request_cookie => $q->scan_cookie($env));
+    for my $key ($q->request_cookie) {
+        my $last_value = $q->request_cookie($key);
+        my @values = $q->request_cookie($key);
+    }
+    $q->request_cookie($key, [@replace_values]);
+    $q->request_cookie($key, @push_values);
+    $q->request_cookie($key, undef); # delete $key and its values.
+
+=item C<< error >>
+
+Sets or reads error message.
 
 =back
 

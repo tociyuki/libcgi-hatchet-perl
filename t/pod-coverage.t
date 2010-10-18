@@ -1,4 +1,4 @@
-use Test::More;
+use Test::Base;
 
 if(! -e '.author') {
     plan skip_all => "-e '.author'";

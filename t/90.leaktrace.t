@@ -12,54 +12,56 @@ leaks_cmp_ok { process_cgi_hatchet() } '<', 1;
 
 sub process_cgi_hatchet {
 
-    my $formdata = <<"EOS";
+    my $formdata = <<'EOS';
 --LMK8SN1abxqdYVn0QlDRB
-Content-Disposition: form-data; name="lin"
+Content-Disposition: form-data; name=source
 
-ok
++++++++++[>++++++++>+++++++++++>+++++<<<-]
+>.>++.+++++++..+++.>-.------------.<
+++++++++.--------.+++.------.--------.>+.
 --LMK8SN1abxqdYVn0QlDRB
-Content-Disposition: form-data; name=fil; filename="jugemude.js"
-Content-Type: application/x-javascript; charset=UTF-8
+Content-Disposition: form-data; name=interp; filename="bf.pl"
+Content-Type: application/x-perl
 
-// Jugeme.js -- A decoder of the quoted string
-// Copyright (c) 2003 MIZUTANI Tociyuki All Rights Reserved.
+use strict;
+use warnings;
 
-var jugemu='AcEWseLMK8SN1abxqdYVn0QlDRB+/iX9pkTy43HPF65GUuOhojmtfzrvwgJC2IZ7=';
-
-function jugemude(s) {
-  var t='',p=-8,a=0,q=0,c,m,n;
-  for(var i=0;i<s.length;i++) {
-    a=(a<<6)|((jugemu.indexOf(s.charAt(i)))&63); p+=6;
-    if(p>=0) {
-      if((c=(a>>p)&255)>0)
-        t+=String.fromCharCode(c);
-      a&=63; p-=8;
-    }
-  }
-  return t;
+my $bf = shift @ARGV;
+my $N = 100;
+my @M = (0) x $N;
+my $BF = {
+  '>' => q{++$p;},
+  '<' => q{--$p;},
+  '+' => q{$M[$p] = $p >= 0 && $p < $N ? $M[$p] + 1 : die 'overflow';},
+  '-' => q{$M[$p] = $p >= 0 && $p < $N ? $M[$p] - 1 : die 'overflow';},
+  '.' => q{print chr($p >= 0 && $p < $N ? $M[$p] : die 'overflow');},
+  ',' => q{die 'overflow' if $p < 0 || $p >= $N; $M[$p] = ord getc;},
+  '[' => q{while ($p >= 0 && $p < $N ? $M[$p] : die 'overflow') } . '{',
+  ']' => '}',
+};
+my $p = 0;
+my $pl = join q{}, map { $BF->{$_} || q{} } split //msx, $bf;
+my $code = eval "sub{$pl}";
+if ($@) {
+    die "compile error : $bf";
 }
-var qe6=jugemude('xLspBM83RyfT+Qe6+MdhbPdhDr3giQu6qLejiQsORQzkBQoO+HnOBPATxPdhDr3giQu6qLejiQsORQzkBQoO+HnOBPA2NrsZ');
-
---LMK8SN1abxqdYVn0QlDRB
-Content-Disposition: form-data; name="scr"
-
-test
-
-test2
+$code->();
 
 --LMK8SN1abxqdYVn0QlDRB--
 EOS
+
     open my($fh), '<', \$formdata;
+    my $env = {
+        'psgi.input' => $fh,
+        REQUEST_METHOD => 'POST',
+        CONTENT_TYPE => 'multipart/form-data; boundary=LMK8SN1abxqdYVn0QlDRB',
+        CONTENT_LENGTH => length $formdata,
+    };
     my $q = CGI::Hatchet->new(
         enable_upload => 0,
         crlf => "\n",
-        env => {
-            'psgi.input' => $fh,
-            REQUEST_METHOD => 'POST',
-            CONTENT_TYPE => 'multipart/form-data; boundary=LMK8SN1abxqdYVn0QlDRB',
-            CONTENT_LENGTH => length $formdata,
-        },
     );
+    $q->scan_formdata($env);
     close $fh;
     return;
 }

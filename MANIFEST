@@ -9,9 +9,14 @@ t/02.scan_cookie.t
 t/03.query.t
 t/04.post.t
 t/10.set_cookie.t
+t/11.normalize.t
+t/12.finalize.t
+t/20.clone.t
+t/21.new_response.t
 t/90.leaktrace.t
 t/perlcritic.t
 t/perlcriticrc
 t/pod-coverage.t
 t/pod.t
 t/lib/Test/Behaviour/Spec.pm
+
