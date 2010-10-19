@@ -1,4 +1,4 @@
-CGI-Hatchet version 0.004
+CGI-Hatchet version 0.005
 
 Similiar as CGI, CGI::Hatchet scans formdata from PSGI environment.
 
@@ -13,7 +13,8 @@ To install this module, run the following commands:
 
 DEPENDENCIES
 
-IO::File
+IO::File - Runtime
+Test::Base - Install
 
 COPYRIGHT AND LICENCE
 

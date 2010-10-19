@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.004';
+use version; our $VERSION = '0.005';
 
 # $Id$
 # $Revision$
@@ -20,6 +20,20 @@ __PACKAGE__->_mk_attributes(
 __PACKAGE__->_mk_attributes(
     \&_param_accessor => qw(header param upload request_cookie),
 );
+
+my @HEADER_LIST = qw(
+    Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
+    Upgrade Via Accept Accept-Charset Accept-Encoding Accept-Language
+    Authorization Expect From Host
+    If-Match If-Modified-Since If-None-Match If-Range If-Unmodified-Since
+    Max-Forwards Proxy-Authorization Range Referer TE User-Agent
+    Accept-Ranges Age Location Proxy-Authenticate Retry-After Server
+    Vary Warning WWW-Authenticate
+    Allow Content-Base Content-Encoding Content-Language Content-Length
+    Content-Location Content-MD5 Content-Range Content-Type ETag Expires
+    Last-Modified URI Cookie Set-Cookie
+);
+my %HEADER = map { lc $HEADER_LIST[$_] => $_ + 1 } 0 .. $#HEADER_LIST;
 
 sub new {
     my($class, @arg) = @_;
@@ -129,8 +143,10 @@ sub finalize {
         [map {
             my $name = $_;
             map {
-                ($name => join "\x0d\x0a ", split /(?:\r\n?|\n)+[\t\040]*/msx, $_);
+                ($name => join "\x0d\x0a ", split /[\r\n]+[\t\040]*/msx, $_);
             } $self->header($name);
+        } sort {
+            ($HEADER{lc $a} || 99) <=> ($HEADER{lc $b} || 99) || $a cmp $b
         } $self->header],
         # similar as Plack::Response except for unchecking overload q{""}.
         ! defined $body ? [] : ! ref $body ? [$body] : $body,
@@ -182,7 +198,7 @@ sub normalize {
         }
     }
     else {
-        if ($env->{SERVER_PROTOCOL} eq 'HTTP/1.0') {
+        if (($env->{SERVER_PROTOCOL} || 'HTTP/1.0') =~ m{/1.0\z}msx) {
             if ($self->status =~ m/\A30[37]\z/msx) {
                 $self->status('302');
             }
@@ -410,6 +426,7 @@ sub _scan_urlencoded {
 sub _scan_multipart_formdata {
     my($self, $env) = @_;
     my $input = $env->{'psgi.input'};
+    length $env->{'CONTENT_TYPE'} < 256 or $self->_croak(400, 'Bad Request');
     my $boundary =
         $env->{'CONTENT_TYPE'} =~ m{\bboundary=(?:"(.+?)"|([^;]+))}msx ? $+
         : $self->_croak(400, 'Bad Request');
@@ -568,7 +585,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.004
+0.005
 
 =head1 SYNOPSIS
 
@@ -637,7 +654,7 @@ CGI::Hatchet - low level request decoder and response container.
     # set cookie
     $res->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
     # add header
-    $res->header('Etag' => q{"iU8ADFlEtdad3a"});
+    $res->header('ETag' => q{"iU8ADFlEtdad3a"});
     # replace body
     $res->body('Hello all.');
     # redirect

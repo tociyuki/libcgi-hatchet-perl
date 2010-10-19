@@ -6,28 +6,14 @@ use CGI::Hatchet;
 plan tests => 1 * blocks;
 
 filters {
-    input => [qw(eval test_finalize sort_header)],
-    expected => [qw(eval sort_header)],
+    input => [qw(eval test_finalize)],
+    expected => [qw(eval)],
 };
 
 run_is_deeply 'input' => 'expected';
 
 sub test_finalize {
     return CGI::Hatchet->new_response(@_)->finalize;
-}
-
-sub sort_header {
-    my($res) = @_;
-    my @a;
-    for (0 .. -1 + int @{$res->[1]} / 2) {
-        my $i = $_ * 2;
-        push @a, [
-            $res->[1][$i] . q{:} . $res->[1][$i + 1],
-            $res->[1][$i] => $res->[1][$i + 1],
-        ];
-    }
-    @a = sort { $a->[0] cmp $b->[0] } @a;
-    return [$res->[0], [map { $_->[1] => $_->[2] } @a], $res->[2]];
 }
 
 __END__
@@ -56,13 +42,13 @@ __END__
     '200',
     [
         'Content-Type' => 'text/html; charset=UTF-8',
-        'Etag' => q{"aWe35tgd"},
+        'ETag' => q{"aWe35tgd"},
+        'Set-Cookie' => 'a=A',
+        'Set-Cookie' => 'b=B',
         'Last-Modified' => 'Sun, 17 Nov 2010 00:01:02 GMT',
         'Date' => 'Sun, 17 Nov 2010 00:01:02 GMT',
         'Expires' => 'Mon, 18 Nov 2010 00:01:02 GMT',
         'Pragma' => 'no-cache',
-        'Set-Cookie' => 'a=A',
-        'Set-Cookie' => 'b=B',
     ],
     ['<html><head><title>Hello, World</title></head><body></body></html>'],
 )
@@ -70,12 +56,12 @@ __END__
 [
     '200',
     [
-        'Content-Type' => 'text/html; charset=UTF-8',
-        'Etag' => q{"aWe35tgd"},
-        'Last-Modified' => 'Sun, 17 Nov 2010 00:01:02 GMT',
         'Date' => 'Sun, 17 Nov 2010 00:01:02 GMT',
-        'Expires' => 'Mon, 18 Nov 2010 00:01:02 GMT',
         'Pragma' => 'no-cache',
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'ETag' => q{"aWe35tgd"},
+        'Expires' => 'Mon, 18 Nov 2010 00:01:02 GMT',
+        'Last-Modified' => 'Sun, 17 Nov 2010 00:01:02 GMT',
         'Set-Cookie' => 'a=A',
         'Set-Cookie' => 'b=B',
     ],
@@ -96,8 +82,8 @@ __END__
 [
     '303',
     [
-        'Content-Type' => 'text/html; charset=UTF-8',
         'Location' => "http://example.net/ \x0d\x0a \x0d\x0a <script>alert('evil')</script>",
+        'Content-Type' => 'text/html; charset=UTF-8',
     ],
     ['<html><head><title>Hello, World</title></head><body></body></html>'],
 ]
@@ -108,7 +94,7 @@ __END__
     '200',
     [
         'Content-Type' => 'text/plain; charset=UTF-8',
-        'Attachment' => "\nContent-Type: text/html\n\n \n\n\n \n\n<script>alert('evil')</script>\n\n",
+        'X-Attachment' => "\nContent-Type: text/html\n\n \n\n\n \n\n<script>alert('evil')</script>\n\n",
     ],
     ['Funny'],
 )
@@ -117,7 +103,7 @@ __END__
     '200',
     [
         'Content-Type' => 'text/plain; charset=UTF-8',
-        'Attachment' => "\x0d\x0a Content-Type: text/html\x0d\x0a \x0d\x0a \x0d\x0a <script>alert('evil')</script>",
+        'X-Attachment' => "\x0d\x0a Content-Type: text/html\x0d\x0a \x0d\x0a \x0d\x0a <script>alert('evil')</script>",
     ],
     ['Funny'],
 ]

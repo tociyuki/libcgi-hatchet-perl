@@ -1,5 +1,9 @@
 Revision history for CGI-Hatchet
 
+0.005  Tue Oct 19 13:48:37 2010
+    + add boundary length check.
+    + add sorting response header.
+
 0.004  Mon Oct 18 07:13:56 2010
     + first release.
 
