@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.005';
+use version; our $VERSION = '0.006';
 
 # $Id$
 # $Revision$
@@ -21,7 +21,7 @@ __PACKAGE__->_mk_attributes(
     \&_param_accessor => qw(header param upload request_cookie),
 );
 
-my @HEADER_LIST = qw(
+my @HEADER_NANE = qw(
     Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
     Upgrade Via Accept Accept-Charset Accept-Encoding Accept-Language
     Authorization Expect From Host
@@ -33,7 +33,23 @@ my @HEADER_LIST = qw(
     Content-Location Content-MD5 Content-Range Content-Type ETag Expires
     Last-Modified URI Cookie Set-Cookie
 );
-my %HEADER = map { lc $HEADER_LIST[$_] => $_ + 1 } 0 .. $#HEADER_LIST;
+my %HEADER_ORDER = map { lc $HEADER_NANE[$_] => $_ + 1 } 0 .. $#HEADER_NANE;
+
+sub sort_header {
+    my($class, @arg) = @_;
+    my $q = $class->new_response;
+    $q->replace(header => @arg);
+    ## no critic qw(ComplexMap)
+    return [
+        map {
+            my $name = $_;
+            map { $name => $_ } $q->header($name);
+        } sort {
+            ($HEADER_ORDER{lc $a} || 99) <=> ($HEADER_ORDER{lc $b} || 99)
+            || $a cmp $b
+        } $q->header,
+    ];
+}
 
 sub new {
     my($class, @arg) = @_;
@@ -145,8 +161,6 @@ sub finalize {
             map {
                 ($name => join "\x0d\x0a ", split /[\r\n]+[\t\040]*/msx, $_);
             } $self->header($name);
-        } sort {
-            ($HEADER{lc $a} || 99) <=> ($HEADER{lc $b} || 99) || $a cmp $b
         } $self->header],
         # similar as Plack::Response except for unchecking overload q{""}.
         ! defined $body ? [] : ! ref $body ? [$body] : $body,
@@ -585,7 +599,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.005
+0.006
 
 =head1 SYNOPSIS
 
@@ -731,6 +745,14 @@ HTTP response rules.
 =item C<< finalize_cookie >>
 
 Creates Set-Cookie headers.
+
+=item C<< sort_header($header) >>
+=item C<< sort_header(@header_pairlist) >>
+
+Sorts header in the same order of HTTP::Header's as_string method.
+
+    $res = $q->finalize;
+    $res->[1] = $q->sort_header($res->[1]);
 
 =item C<< fatals_to_browser($bool) >>
 

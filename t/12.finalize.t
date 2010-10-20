@@ -13,7 +13,9 @@ filters {
 run_is_deeply 'input' => 'expected';
 
 sub test_finalize {
-    return CGI::Hatchet->new_response(@_)->finalize;
+    my $res = CGI::Hatchet->new_response(@_)->finalize;
+    $res->[1] = CGI::Hatchet->sort_header($res->[1]);
+    return $res;
 }
 
 __END__
