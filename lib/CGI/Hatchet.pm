@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.006';
+use version; our $VERSION = '0.007';
 
 # $Id$
 # $Revision$
@@ -33,7 +33,10 @@ my @HEADER_NANE = qw(
     Content-Location Content-MD5 Content-Range Content-Type ETag Expires
     Last-Modified URI Cookie Set-Cookie
 );
-my %HEADER_ORDER = map { lc $HEADER_NANE[$_] => $_ + 1 } 0 .. $#HEADER_NANE;
+
+my %HEADER_ORDER = map {
+    lc $HEADER_NANE[$_] => sprintf '%3d', $_ + 1
+} 0 .. $#HEADER_NANE;
 
 sub sort_header {
     my($class, @arg) = @_;
@@ -45,8 +48,7 @@ sub sort_header {
             my $name = $_;
             map { $name => $_ } $q->header($name);
         } sort {
-            ($HEADER_ORDER{lc $a} || 99) <=> ($HEADER_ORDER{lc $b} || 99)
-            || $a cmp $b
+            ($HEADER_ORDER{lc $a} || $a) cmp ($HEADER_ORDER{lc $b} || $b)
         } $q->header,
     ];
 }
@@ -599,7 +601,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.006
+0.007
 
 =head1 SYNOPSIS
 

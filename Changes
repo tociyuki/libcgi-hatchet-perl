@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.007  Wed Oct 20 13:03:45 2010
+    ! simply %HEADER_ORDER stores string values.
+
 0.006  Wed Oct 20 03:36:44 2010
     ! separate sort_header class method from finalize method.
 
