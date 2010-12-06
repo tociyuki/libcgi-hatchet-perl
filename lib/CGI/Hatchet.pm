@@ -343,7 +343,7 @@ sub _croak {
 sub _decode_uri {
     my($uri) = @_;
     $uri =~ tr/+/ /;
-    $uri =~ s{%([0-9A-Fa-f]{2})}{ chr hex $1 }egmsx;
+    $uri =~ s{%([0-9A-Fa-f]{2})}{ chr hex $1 }egmosx;
     return $uri;
 }
 
@@ -623,7 +623,7 @@ CGI::Hatchet - low level request decoder and response container.
     # fetch parameters.
     my $ph = $q->scan_formdata($env);
     # on CGI environment.
-    # my $ph = $q->scan_formdata({%ENV, 'psgi.input' => \*INPUT});
+    # my $ph = $q->scan_formdata({%ENV, 'psgi.input' => \*STDIN});
     my $param = Hash::MultiValue->new(
         @{$ph->{query_param}}, @{$ph->{body_param}},
     );
@@ -693,7 +693,7 @@ for PSGI applications.
 
 =item C<< new($key => $value, ...) >>
 
-=item C<< new_response($rc, $headers, $content) >>
+=item C<< new_response($rc, \@headers, \@body) >>
 
 =item C<< keyword_name($string) >>
 
@@ -804,7 +804,7 @@ list of parameter's names and values.
 If you get upload_info, you must C<seek $handle_N, 0, 0> before
 read from it.
 
-=item C<< read_body($env) >>
+=item C<< $body = read_body($env) >>
 
 Reads entire content of the request.
 
