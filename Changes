@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.008  Sat Jan  8 09:06:32 2011
+    + add script_name property.
+
 0.007  Wed Oct 20 13:03:45 2010
     ! simply %HEADER_ORDER stores string values.
 

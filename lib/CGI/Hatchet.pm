@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.007';
+use version; our $VERSION = '0.008';
 
 # $Id$
 # $Revision$
@@ -15,6 +15,7 @@ __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
         keyword_name max_post enable_upload block_size max_header
         fatals_to_browser error_page_builder error status body
+        script_name
     ),
 );
 __PACKAGE__->_mk_attributes(
@@ -64,6 +65,7 @@ sub new {
         fatals_to_browser => 0,
         error_page_builder => undef,
         crlf => undef,
+        script_name => q{},
         (ref $class ? %{$class} : ()),
         error => undef,
         status => undef,
@@ -95,6 +97,7 @@ sub new_response {
     if (ref $class) {
         my @extend = qw(
             error status fatals_to_browser error_page_builder crlf
+            script_name
         );
         for my $attr (@extend) {
             $self->$attr($class->$attr);
@@ -601,7 +604,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.007
+0.008
 
 =head1 SYNOPSIS
 
@@ -706,6 +709,8 @@ for PSGI applications.
 =item C<< crlf($string) >>
 
 =item C<< max_header($integer) >>
+
+=item C<< script_name($string) >>
 
 =item C<< status($digits) >>
 

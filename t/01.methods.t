@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::Base tests => 139;
+use Test::Base tests => 145;
 BEGIN {
     require 't/lib/Test/Behaviour/Spec.pm';
     Test::Behaviour::Spec->import;
@@ -298,6 +298,37 @@ use CGI::Hatchet;
     
         my $q1 = CGI::Hatchet->new(content_length => 128);
         is $q1->content_length, 128, spec;
+}
+
+{
+    describe 'script_name';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'script_name';
+
+    it 'is empty at init.';
+
+        is $q->script_name, q{}, spec;
+
+    it 'changes value.';
+
+        is $q->script_name('/foo'), '/foo', spec;
+
+    it 'keeps last value.';
+
+        is $q->script_name, '/foo', spec;
+    
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(script_name => '/bar');
+        is $q1->script_name, '/bar', spec;
+        
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->script_name, '/foo', spec;
 }
 
 {
