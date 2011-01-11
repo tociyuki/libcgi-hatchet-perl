@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.008';
+use version; our $VERSION = '0.009';
 
 # $Id$
 # $Revision$
@@ -14,13 +14,15 @@ use version; our $VERSION = '0.008';
 __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
         keyword_name max_post enable_upload block_size max_header
-        fatals_to_browser error_page_builder error status body
+        fatals_to_browser error_page_builder error code body
         script_name
     ),
 );
 __PACKAGE__->_mk_attributes(
     \&_param_accessor => qw(header param upload request_cookie),
 );
+
+*status = \&code;
 
 my @HEADER_NANE = qw(
     Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
@@ -68,7 +70,7 @@ sub new {
         script_name => q{},
         (ref $class ? %{$class} : ()),
         error => undef,
-        status => undef,
+        code => undef,
         body => undef,
         header => {},
         cookie => {},
@@ -86,7 +88,7 @@ sub new {
 sub new_response {
     my($class, $rc, $headers, $content) = @_;
     my $self = bless {
-        status => undef,
+        code => undef,
         header => {},
         cookie => {},
         body => undef,
@@ -96,7 +98,7 @@ sub new_response {
     }, ref $class ? ref $class : $class;
     if (ref $class) {
         my @extend = qw(
-            error status fatals_to_browser error_page_builder crlf
+            error code fatals_to_browser error_page_builder crlf
             script_name
         );
         for my $attr (@extend) {
@@ -113,7 +115,7 @@ sub new_response {
         );
     }
     if (defined $rc && ! $self->error) {
-        $self->status($rc);
+        $self->code($rc);
     }
     if (ref $headers eq 'ARRAY') {
         $self->replace(header => $headers);
@@ -150,7 +152,7 @@ sub redirect {
     my($self, @arg) = @_;
     if (@arg) {
         $self->header('Location' => $arg[0]);
-        $self->status(@arg > 1 ? $arg[1] : '303');
+        $self->code(@arg > 1 ? $arg[1] : '303');
     }
     return $self->header('Location');
 }
@@ -160,7 +162,7 @@ sub finalize {
     my $body = $self->body;
     ## no critic qw(ComplexMap)
     return [
-        $self->status,
+        $self->code,
         [map {
             my $name = $_;
             map {
@@ -198,12 +200,12 @@ sub finalize_cookie {
 
 sub normalize {
     my($self, $env) = @_;
-    if (! $self->status) {
-        $self->error(join ".\n", 'Undefined Status', ($self->error || ()));
+    if (! $self->code) {
+        $self->error(join ".\n", 'Undefined code', ($self->error || ()));
     }
     if ($self->error) {
-        if (! $self->status || $self->status !~ m/\A[45][0-9][0-9]\z/msx) {
-            $self->status(500);
+        if (! $self->code || $self->code !~ m/\A[45][0-9][0-9]\z/msx) {
+            $self->code(500);
         }
         $self->header('Set-Cookie', undef);
         $self->header('Location', undef);
@@ -218,12 +220,12 @@ sub normalize {
     }
     else {
         if (($env->{SERVER_PROTOCOL} || 'HTTP/1.0') =~ m{/1.0\z}msx) {
-            if ($self->status =~ m/\A30[37]\z/msx) {
-                $self->status('302');
+            if ($self->code =~ m/\A30[37]\z/msx) {
+                $self->code('302');
             }
         }
     }
-    if ($self->status =~ /\A(?:1[0-9][0-9]|[23]04)\z/msx) {
+    if ($self->code =~ /\A(?:1[0-9][0-9]|[23]04)\z/msx) {
         $self->content_length(undef);
         $self->body(undef);
     }
@@ -246,7 +248,7 @@ sub normalize {
 sub _build_default_error_page {
     my($self) = @_;
     $self->content_type('text/html; charset=UTF-8');
-    my $status = $self->status;
+    my $code = $self->code;
     my $content = q{};
     if ($self->fatals_to_browser) {
         my $error = $self->error;
@@ -260,10 +262,10 @@ sub _build_default_error_page {
     $self->body(<<"HTML");
 <html>
 <head>
-<title>ERROR $status</title>
+<title>ERROR $code</title>
 </head>
 <body>
-<h1>ERROR $status</h1>
+<h1>ERROR $code</h1>
 $content</body>
 </html>
 HTML
@@ -338,7 +340,7 @@ sub scan_formdata {
 
 sub _croak {
     my($self, $code, $message) = @_;
-    $self->{status} = $code || 500;
+    $self->{code} = $code || 500;
     $self->{error} = $message || 'Internal Server Error';
     croak "$code $message";
 }
@@ -604,7 +606,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.008
+0.009
 
 =head1 SYNOPSIS
 
@@ -712,9 +714,14 @@ for PSGI applications.
 
 =item C<< script_name($string) >>
 
+=item C<< code($digits) >>
+
+B<Response> status code.
+
 =item C<< status($digits) >>
 
 B<Response> status code.
+This is alias of the C<code> property.
 
 =item C<< content_type($string) >>
 
@@ -889,7 +896,7 @@ MIZUTANI Tociyuki  C<< <tociyuki@gmail.com> >>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2010, MIZUTANI Tociyuki C<< <tociyuki@gmail.com> >>.
+Copyright (c) 2011, MIZUTANI Tociyuki C<< <tociyuki@gmail.com> >>.
 All rights reserved.
 
 This module is free software; you can redistribute it and/or

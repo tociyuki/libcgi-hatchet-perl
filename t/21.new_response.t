@@ -79,12 +79,12 @@ undef
 --- input
 sub{ 'injected' }
 
-=== status
+=== code
 --- input
 sub{ '200' }
 
-=== status
-replace status with inject
+=== code
+replace code with inject
 --- input
 sub{ '200' }
 --- inject
@@ -92,8 +92,8 @@ sub{ '200' }
 --- expected
 '304'
 
-=== status
-pass status with inject undef
+=== code
+pass code with inject undef
 --- input
 sub{ '200' }
 --- inject
@@ -101,8 +101,8 @@ sub{ '200' }
 --- expected
 '200'
 
-=== status
-drop status inject on error
+=== code
+drop code inject on error
 --- input
 sub{ $_[1]->error('bad'); '500' }
 --- inject

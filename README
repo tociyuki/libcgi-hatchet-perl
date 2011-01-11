@@ -1,4 +1,4 @@
-CGI-Hatchet version 0.008
+CGI-Hatchet version 0.009
 
 Similiar as CGI, CGI::Hatchet scans formdata from PSGI environment.
 
@@ -18,7 +18,7 @@ Test::Base - Install
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2010, MIZUTANI Tociyuki
+Copyright (C) 2011, MIZUTANI Tociyuki
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

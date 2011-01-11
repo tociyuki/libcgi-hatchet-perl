@@ -223,29 +223,29 @@ use CGI::Hatchet;
 }
 
 {
-    describe 'status';
+    describe 'code';
 
     it 'is an attribute of CGI::Hatchet.';
 
         my $q = CGI::Hatchet->new;
-        can_ok $q, 'status';
+        can_ok $q, 'code';
 
     it 'is undefined at init.';
 
-        ok ! defined $q->status, spec;
+        ok ! defined $q->code, spec;
 
     it 'changes value.';
 
-        is $q->status('200'), '200', spec;
+        is $q->code('200'), '200', spec;
 
     it 'keeps last value.';
 
-        is $q->status, '200', spec;
+        is $q->code, '200', spec;
 
     it 'is constructor-injectable.';
     
-        my $q1 = CGI::Hatchet->new(status => '204');
-        is $q1->status, '204', spec;
+        my $q1 = CGI::Hatchet->new(code => '204');
+        is $q1->code, '204', spec;
 }
 
 {
@@ -845,12 +845,12 @@ use CGI::Hatchet;
     it 'changes location.';
 
         $q->redirect('/frontpage');
-        ok $q->header('Location') eq '/frontpage' && $q->status eq '303', spec; 
+        ok $q->header('Location') eq '/frontpage' && $q->code eq '303', spec; 
 
-    it 'changes location and status.';
+    it 'changes location and code.';
 
         $q->redirect('/frontpage', '301');
-        ok $q->header('Location') eq '/frontpage' && $q->status eq '301', spec; 
+        ok $q->header('Location') eq '/frontpage' && $q->code eq '301', spec; 
 }
 
 {

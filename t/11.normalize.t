@@ -20,7 +20,7 @@ run {
     $q->normalize($input->{env});
     my @headers = $q->header;
     is_deeply +{
-        status => $q->status,
+        code => $q->code,
         header => {
             'keys' => {map { $_ => 1 } @headers},
             map { $_ => [ $q->header($_) ] } @headers,
@@ -40,7 +40,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         content_length => length $body,
         body => $body,
@@ -49,7 +49,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -67,7 +67,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         content_length => length $body,
         body => [$body],
@@ -76,7 +76,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -94,7 +94,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         content_length => length $body,
         body => {content => $body},
@@ -103,7 +103,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -121,7 +121,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => $body,
     },
@@ -129,7 +129,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -147,7 +147,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => [$body],
     },
@@ -155,7 +155,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -173,7 +173,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => {content => $body},
     },
@@ -181,7 +181,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -198,7 +198,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => $body,
     },
@@ -206,7 +206,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -224,7 +224,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => [$body],
     },
@@ -232,7 +232,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -250,7 +250,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '200',
+        code => '200',
         content_type => 'text/html; charset=UTF-8',
         body => {content => $body},
     },
@@ -258,7 +258,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '200',
+    code => '200',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -275,7 +275,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '100',
+        code => '100',
         content_type => 'text/html; charset=UTF-8',
         content_length => length $body,
         body => $body,
@@ -283,7 +283,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 }
 --- expected
 +{
-    status => '100',
+    code => '100',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -300,7 +300,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '204',
+        code => '204',
         content_type => 'text/html; charset=UTF-8',
         content_length => length $body,
         body => $body,
@@ -308,7 +308,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 }
 --- expected
 +{
-    status => '204',
+    code => '204',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -325,7 +325,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '303',
+        code => '303',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -337,7 +337,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '303',
+    code => '303',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length', 'Location'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -356,7 +356,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.0',
     },
     property => {
-        status => '303',
+        code => '303',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -368,7 +368,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '302',
+    code => '302',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length', 'Location'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -387,7 +387,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '304',
+        code => '304',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -398,7 +398,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '304',
+    code => '304',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -415,7 +415,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.0',
     },
     property => {
-        status => '304',
+        code => '304',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -426,7 +426,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '304',
+    code => '304',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -443,7 +443,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '307',
+        code => '307',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -455,7 +455,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '307',
+    code => '307',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length', 'Location'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -474,7 +474,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.0',
     },
     property => {
-        status => '307',
+        code => '307',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -486,7 +486,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
 +{
-    status => '302',
+    code => '302',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length', 'Location'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -505,7 +505,7 @@ my $body = '<html><head><title>Bad</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '400',
+        code => '400',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -516,7 +516,7 @@ my $body = '<html><head><title>Bad</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Bad</title></head><body></body></html>';
 +{
-    status => '400',
+    code => '400',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -534,7 +534,7 @@ my $body = '<html><head><title>Error</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '500',
+        code => '500',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -545,7 +545,7 @@ my $body = '<html><head><title>Error</title></head><body></body></html>';
 --- expected
 my $body = '<html><head><title>Error</title></head><body></body></html>';
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -563,7 +563,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '404',
+        code => '404',
         content_type => 'text/html; charset=UTF-8',
         error => 'Not Found',
         body => $body,
@@ -581,7 +581,7 @@ my $body = <<"HTML";
 </html>
 HTML
 +{
-    status => '404',
+    code => '404',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -600,7 +600,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
     },
     property => {
         fatals_to_browser => 0,
-        status => '500',
+        code => '500',
         content_type => 'text/html; charset=UTF-8',
         error => "There is something to be wrong, it will.\n",
         body => $body,
@@ -618,7 +618,7 @@ my $body = <<"HTML";
 </html>
 HTML
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -637,7 +637,7 @@ my $body = '<html><head><title>Hello, World</title></head><body></body></html>';
     },
     property => {
         fatals_to_browser => 1,
-        status => '500',
+        code => '500',
         content_type => 'text/html; charset=UTF-8',
         error => "There is something to be wrong, it will.\n",
         body => $body,
@@ -657,7 +657,7 @@ my $body = <<"HTML";
 </html>
 HTML
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -675,7 +675,7 @@ my $body = '<html><head><title>Error</title></head><body></body></html>';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '303',
+        code => '303',
         header => [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Length' => length $body,
@@ -699,7 +699,7 @@ my $body = <<"HTML";
 </html>
 HTML
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -717,7 +717,7 @@ my $body = 'Hello, World';
         SERVER_PROTOCOL => 'HTTP/1.1',
     },
     property => {
-        status => '500',
+        code => '500',
         content_type => 'text/html; charset=UTF-8',
         error => "There is something to be wrong, it will.\n",
         error_page_builder => sub{
@@ -731,7 +731,7 @@ my $body = 'Hello, World';
 --- expected
 my $body = '<result><error code="1" /></result>';
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['application/xml; charset=UTF-8'],
@@ -740,7 +740,7 @@ my $body = '<result><error code="1" /></result>';
     body => $body,
 }
 
-=== undefined status
+=== undefined code
 --- input
 my $body = '<html><head><title>Error</title></head><body></body></html>';
 +{
@@ -767,7 +767,7 @@ my $body = <<"HTML";
 </html>
 HTML
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],
@@ -776,7 +776,7 @@ HTML
     body => $body,
 }
 
-=== undefined status, fatals_to_browser is true
+=== undefined code, fatals_to_browser is true
 --- input
 my $body = '<html><head><title>Error</title></head><body></body></html>';
 +{
@@ -800,12 +800,12 @@ my $body = <<"HTML";
 </head>
 <body>
 <h1>ERROR 500</h1>
-<pre>Undefined Status</pre>
+<pre>Undefined code</pre>
 </body>
 </html>
 HTML
 +{
-    status => '500',
+    code => '500',
     header => {
         'keys' => {map { $_ => 1 } 'Content-Type', 'Content-Length'},
         'Content-Type' => ['text/html; charset=UTF-8'],

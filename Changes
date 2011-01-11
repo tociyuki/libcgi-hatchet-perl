@@ -1,5 +1,9 @@
 Revision history for CGI-Hatchet
 
+0.009  Tue Jan 11 08:18:30 2011
+    ! property rename status to code.
+    + alias status to code.
+
 0.008  Sat Jan  8 09:06:32 2011
     + add script_name property.
 

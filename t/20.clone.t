@@ -70,7 +70,7 @@ sub{ 'injected' }
 --- expected
 undef
 
-=== status
+=== code
 --- input
 sub{ '200' }
 --- expected
