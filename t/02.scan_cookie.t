@@ -14,7 +14,7 @@ run_is_deeply 'input' => 'expected';
 
 sub test_scan_cookie {
     my($input) = @_;
-    return [ CGI::Hatchet->new->scan_cookie({HTTP_COOKIE => $input}) ];
+    return [CGI::Hatchet->new->scan_cookie({HTTP_COOKIE => $input})];
 }
 
 __END__

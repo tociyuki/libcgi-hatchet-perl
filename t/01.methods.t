@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::Base tests => 145;
+use Test::Base tests => 184;
 BEGIN {
     require 't/lib/Test/Behaviour/Spec.pm';
     Test::Behaviour::Spec->import;
@@ -301,6 +301,214 @@ use CGI::Hatchet;
 }
 
 {
+    describe 'env';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'env';
+
+    it 'has an hash reference.';
+
+        is ref $q->env, 'HASH', spec;
+
+    it 'changes value.';
+
+        is_deeply $q->env({FOO => 'foo', BAR => 'bar'}),
+            {FOO => 'foo', BAR => 'bar'}, spec;
+
+    it 'keeps last value.';
+
+        is_deeply $q->env, {FOO => 'foo', BAR => 'bar'}, spec;
+
+    it 'is constructor-injectable.';
+
+        my $q1 = CGI::Hatchet->new(env => {A => 'a', B => 'b'});
+        is_deeply $q1->env, {A => 'a', B => 'b'}, spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is_deeply $r->env, {FOO => 'foo', BAR => 'bar'}, spec;
+}
+
+{
+    describe 'address';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'address';
+
+    it 'is env REMOTE_ADDR value.';
+
+        $q->env({REMOTE_ADDR => '192.168.0.1'});
+        is $q->address, '192.168.0.1', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->address, '192.168.0.1', spec;
+}
+
+{
+    describe 'remote_host';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'remote_host';
+
+    it 'is env REMOTE_HOST value.';
+
+        $q->env({REMOTE_HOST => 'example.net'});
+        is $q->remote_host, 'example.net', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->remote_host, 'example.net', spec;
+}
+
+{
+    describe 'protocol';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'protocol';
+
+    it 'is env SERVER_PROTOCOL value.';
+
+        $q->env({SERVER_PROTOCOL => 'HTTP/1.1'});
+        is $q->protocol, 'HTTP/1.1', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->protocol, 'HTTP/1.1', spec;
+}
+
+{
+    describe 'method';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'method';
+
+    it 'is env REQUEST_METHOD value.';
+
+        $q->env({REQUEST_METHOD => 'PUT'});
+        is $q->method, 'PUT', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->method, 'PUT', spec;
+}
+
+{
+    describe 'port';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'port';
+
+    it 'is env SERVER_PORT value.';
+
+        $q->env({SERVER_PORT => 5000});
+        is $q->port, 5000, spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->port, 5000, spec;
+}
+
+{
+    describe 'user';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'user';
+
+    it 'is env REMOTE_USER value.';
+
+        $q->env({REMOTE_USER => 'alice'});
+        is $q->user, 'alice', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->user, 'alice', spec;
+}
+
+{
+    describe 'request_uri';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'request_uri';
+
+    it 'is env REQUEST_URI value.';
+
+        $q->env({REQUEST_URI => '/foo/bar'});
+        is $q->request_uri, '/foo/bar', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->request_uri, '/foo/bar', spec;
+}
+
+{
+    describe 'path_info';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'path_info';
+
+    it 'is env PATH_INFO value.';
+
+        $q->env({PATH_INFO => '/foo/bar'});
+        is $q->path_info, '/foo/bar', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->path_info, '/foo/bar', spec;
+}
+
+{
+    describe 'path';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'path';
+
+    it 'is env PATH_INFO value.';
+
+        $q->env({PATH_INFO => '/foo/bar'});
+        is $q->path, '/foo/bar', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->path, '/foo/bar', spec;
+        
+    it 'returns root for undefined or empty PATH_INFO.';
+    
+        $q->env({PATH_INFO => q{}});
+        is $q->path, q{/}, spec;
+}
+
+{
     describe 'script_name';
 
     it 'is an attribute of CGI::Hatchet.';
@@ -308,27 +516,58 @@ use CGI::Hatchet;
         my $q = CGI::Hatchet->new;
         can_ok $q, 'script_name';
 
-    it 'is empty at init.';
+    it 'is env SCRIPT_NAME value.';
 
-        is $q->script_name, q{}, spec;
-
-    it 'changes value.';
-
-        is $q->script_name('/foo'), '/foo', spec;
-
-    it 'keeps last value.';
-
+        $q->env({SCRIPT_NAME => '/foo'});
         is $q->script_name, '/foo', spec;
-    
-    it 'is constructor-injectable.';
-    
-        my $q1 = CGI::Hatchet->new(script_name => '/bar');
-        is $q1->script_name, '/bar', spec;
-        
+
     it 'is succeeded to responses.';
 
         my $r = $q->new_response;
         is $r->script_name, '/foo', spec;
+}
+
+{
+    describe 'scheme';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'scheme';
+
+    it 'is env psgi.url_scheme value.';
+
+        $q->env({'psgi.url_scheme' => 'https'});
+        is $q->scheme, 'https', spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        is $r->scheme, 'https', spec;
+}
+
+{
+    describe 'secure';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'secure';
+
+    it 'becomes false when env psgi.url_scheme is not https.';
+
+        $q->env({'psgi.url_scheme' => 'http'});
+        ok ! $q->secure, spec;
+
+    it 'becomes true when env psgi.url_scheme is not https.';
+
+        $q->env({'psgi.url_scheme' => 'https'});
+        ok $q->secure, spec;
+
+    it 'is succeeded to responses.';
+
+        my $r = $q->new_response;
+        ok $r->secure, spec;
 }
 
 {
@@ -812,6 +1051,16 @@ use CGI::Hatchet;
 
         my $q = CGI::Hatchet->new;
         can_ok $q, 'read_body';
+}
+
+{
+    describe 'scan_header';
+
+    it 'is an instance method.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'scan_header';
+        # t/05.scan_header.t for detail behaviours.
 }
 
 {

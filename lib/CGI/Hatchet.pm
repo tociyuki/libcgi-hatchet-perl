@@ -5,17 +5,16 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.009';
+use version; our $VERSION = '0.010';
 
 # $Id$
 # $Revision$
-## no critic qw(ProhibitPunctuationVars)
+## no critic qw(ProhibitPunctuationVars ProhibitComplexMappings)
 
 __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
         keyword_name max_post enable_upload block_size max_header
-        fatals_to_browser error_page_builder error code body
-        script_name
+        fatals_to_browser error_page_builder error code body env
     ),
 );
 __PACKAGE__->_mk_attributes(
@@ -24,37 +23,18 @@ __PACKAGE__->_mk_attributes(
 
 *status = \&code;
 
-my @HEADER_NANE = qw(
-    Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
-    Upgrade Via Accept Accept-Charset Accept-Encoding Accept-Language
-    Authorization Expect From Host
-    If-Match If-Modified-Since If-None-Match If-Range If-Unmodified-Since
-    Max-Forwards Proxy-Authorization Range Referer TE User-Agent
-    Accept-Ranges Age Location Proxy-Authenticate Retry-After Server
-    Vary Warning WWW-Authenticate
-    Allow Content-Base Content-Encoding Content-Language Content-Length
-    Content-Location Content-MD5 Content-Range Content-Type ETag Expires
-    Last-Modified URI Cookie Set-Cookie
-);
-
-my %HEADER_ORDER = map {
-    lc $HEADER_NANE[$_] => sprintf '%3d', $_ + 1
-} 0 .. $#HEADER_NANE;
-
-sub sort_header {
-    my($class, @arg) = @_;
-    my $q = $class->new_response;
-    $q->replace(header => @arg);
-    ## no critic qw(ComplexMap)
-    return [
-        map {
-            my $name = $_;
-            map { $name => $_ } $q->header($name);
-        } sort {
-            ($HEADER_ORDER{lc $a} || $a) cmp ($HEADER_ORDER{lc $b} || $b)
-        } $q->header,
-    ];
-}
+sub address     { return shift->env->{'REMOTE_ADDR'} }
+sub remote_host { return shift->env->{'REMOTE_HOST'} }
+sub protocol    { return shift->env->{'SERVER_PROTOCOL'} }
+sub method      { return shift->env->{'REQUEST_METHOD'} }
+sub port        { return shift->env->{'SERVER_PORT'} }
+sub user        { return shift->env->{'REMOTE_USER'} }
+sub request_uri { return shift->env->{'REQUEST_URI'} }
+sub path_info   { return shift->env->{'PATH_INFO'} }
+sub path        { return shift->env->{'PATH_INFO'} || q{/} }
+sub script_name { return shift->env->{'SCRIPT_NAME'} }
+sub scheme      { return shift->env->{'psgi.url_scheme'} }
+sub secure      { return shift->scheme eq 'https' }
 
 sub new {
     my($class, @arg) = @_;
@@ -67,8 +47,8 @@ sub new {
         fatals_to_browser => 0,
         error_page_builder => undef,
         crlf => undef,
-        script_name => q{},
         (ref $class ? %{$class} : ()),
+        env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         error => undef,
         code => undef,
         body => undef,
@@ -88,6 +68,7 @@ sub new {
 sub new_response {
     my($class, $rc, $headers, $content) = @_;
     my $self = bless {
+        env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         code => undef,
         header => {},
         cookie => {},
@@ -98,8 +79,7 @@ sub new_response {
     }, ref $class ? ref $class : $class;
     if (ref $class) {
         my @extend = qw(
-            error code fatals_to_browser error_page_builder crlf
-            script_name
+            error code fatals_to_browser error_page_builder crlf env
         );
         for my $attr (@extend) {
             $self->$attr($class->$attr);
@@ -200,6 +180,8 @@ sub finalize_cookie {
 
 sub normalize {
     my($self, $env) = @_;
+    my $_env = $env || $self->env;
+    local $self->{env} = $_env; ## no critic (ProhibitLocalVars)
     if (! $self->code) {
         $self->error(join ".\n", 'Undefined code', ($self->error || ()));
     }
@@ -212,14 +194,14 @@ sub normalize {
         $self->content_length(undef);
         $self->body(undef);
         if (ref $self->error_page_builder eq 'CODE') {
-            $self->error_page_builder->($self);
+            $self->error_page_builder->($self, $env);
         }
         else {
             $self->_build_default_error_page;
         }
     }
     else {
-        if (($env->{SERVER_PROTOCOL} || 'HTTP/1.0') =~ m{/1.0\z}msx) {
+        if (($self->protocol || 'HTTP/1.0') =~ m{/1.0\z}msx) {
             if ($self->code =~ m/\A30[37]\z/msx) {
                 $self->code('302');
             }
@@ -239,7 +221,7 @@ sub normalize {
             $self->content_length(bytes::length(join q{}, @{$self->body}));
         }
     }
-    if ($env->{REQUEST_METHOD} eq 'HEAD') {
+    if ($self->method eq 'HEAD') {
         $self->body(undef);
     }
     return $self;
@@ -289,8 +271,21 @@ sub crlf {
     return $self->{crlf};
 }
 
+sub scan_header {
+    my($self, $env) = @_;
+    $env ||= $self->env;
+    return map {
+        /\A(?:HTTP|CONTENT)/msx ? do {
+            (my $k = $_) =~ s/\AHTTP_//msx;
+            $k = join q{-}, map { ucfirst lc } split /_/msx, $k;
+            ($k => $env->{$_});
+        } : ()
+    } keys %{$env};
+}
+
 sub scan_cookie {
     my($self, $env) = @_;
+    $env ||= $self->env;
     my @cookie;
     for (split /[,;]/msx, $env->{'HTTP_COOKIE'} || q{}) {
         s/\A[\t\x20]+//msx;
@@ -304,6 +299,7 @@ sub scan_cookie {
 
 sub read_body {
     my($self, $env) = @_;
+    $env ||= $self->env;
     my $reader = $self->_proc_reader($env);
     my $body = q{};
     while (length $body < $env->{'CONTENT_LENGTH'}) {
@@ -314,6 +310,7 @@ sub read_body {
 
 sub scan_formdata {
     my($self, $env) = @_;
+    $env ||= $self->env;
     my $method = $env->{'REQUEST_METHOD'} || 'GET';
     my $query = defined $env->{'QUERY_STRING'} ? $env->{'QUERY_STRING'}
         : defined $env->{'REDIRECT_QUERY_STRING'}
@@ -321,6 +318,7 @@ sub scan_formdata {
         : q{};
     my $c = {
         query_param => $self->_scan_urlencoded($query),
+        body_param => [],
     };
     if ($method eq 'POST') {
         my $input = $env->{'psgi.input'};
@@ -368,7 +366,7 @@ sub _encode_uri {
 
 sub replace {
     my($self, $attr, @arg) = @_;
-    if (ref $self->{$attr} eq 'HASH') {
+    if (ref $self->{$attr} eq 'HASH' && $attr ne 'env') {
         %{$self->{$attr}} = ();
         my $a = @arg == 1 && ref $arg[0] eq 'ARRAY' ? $arg[0] : \@arg;
         for (0 .. -1 + int @{$a} / 2) {
@@ -606,30 +604,36 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.009
+0.010
 
 =head1 SYNOPSIS
 
     use CGI::Hatchet;
     use File::Slurp;
     use Hash::MultiValue;
-
+    
     # create instance.
     $q = CGI::Hatchet->new(
-        post_max => 16 * 1024,
-        enable_upload => 1,
+        post_max => 16 * 1024, enable_upload => 1,
+        env => $env,
     );
+    # create instance with response settings
+    $res = $q->new_response(
+        '200',
+        ['Content-Type' => 'text/plain'],
+        ['Hello, ', 'World!'],
+    );
+    
     # or via the instance as a factory.
     $factory = CGI::Hatchet->new;
     $factory->max_post(256 * 1024);
     $factory->enable_upload(1);
-    $q0 = $factory->new;
-    $q1 = $factory->new;
+    $q = $factory->new(env => $env);
+    $q = $factory->new_response(200);
+    
     # fetch parameters.
-    my $ph = $q->scan_formdata($env);
-    # on CGI environment.
-    # my $ph = $q->scan_formdata({%ENV, 'psgi.input' => \*STDIN});
-    my $param = Hash::MultiValue->new(
+    my $ph = $q->scan_formdata;
+    my $parameters = Hash::MultiValue->new(
         @{$ph->{query_param}}, @{$ph->{body_param}},
     );
     my $upload_info = Hash::MultiValue->new(@{$ph->{upload_info}});
@@ -642,7 +646,8 @@ CGI::Hatchet - low level request decoder and response container.
             }
         }
     }
-    # you may access this module's param, upload, and upload_info attribute.
+    
+    # you can access this module's param, upload, and upload_info attribute.
     $q->replace(param => $ph->{body_param});
     for (0 .. -1 + int @{$qh->{upload_info}} / 2) {
         my $i = $_ * 2;
@@ -652,40 +657,35 @@ CGI::Hatchet - low level request decoder and response container.
     }
     my $filename = $q->param('up');
     my $upload_body = File::Slurp::read_file($q->upload($filename));
+    
     # fetch cookies
-    my $cookies = Hash::MultiValue->new($q->scan_cookie($env));
-    for my $name (keys %{$cookies}) {
-        for my $value ($cookie->get_all($name)) {
-            print "$name: $value\n";
-        }
-    }
+    my $cookies = Hash::MultiValue->new($q->scan_cookie);
     # you may access this module'srequest_cookie attribute.
-    $q->replace(request_cookie => $q->scan_cookie($env));
+    $q->replace(request_cookie => $q->scan_cookie);
     for my $name ($q->request_cookie) {
         for my $value ($q->request_cookie($name)) {
             print "$name: $value\n";
         }
-    }    
+    }
+    
     # setup response
-    my $res = $q->new_response(
-        '200',
-        ['Content-Type' => 'text/plain'],
-        ['Hello, ', 'World!'],
-    );
+    $q->code(200);
+    $q->content_type('text/plain');
+    $q->body(['Hello, ', 'World!']);
     # set cookie
-    $res->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
+    $q->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
     # add header
-    $res->header('ETag' => q{"iU8ADFlEtdad3a"});
+    $q->header('ETag' => q{"iU8ADFlEtdad3a"});
     # replace body
-    $res->body('Hello all.');
+    $q->body(['Hello all.']);
     # redirect
-    $res->redirect('http://another.net/', '303');
+    $q->redirect('http://another.net/', '303');
     # write Set-Cookie header from cookie attribute
-    $res->finalize_cookie;
+    $q->finalize_cookie;
     # normalize status code, headers, and body.
-    $res->normalize($env);
+    $q->normalize($env);
     # create PSGI response
-    my $psgi_res = $res->finalize;
+    my $psgi_res = $q->finalize;
 
 =head1 DESCRIPTION
 
@@ -698,54 +698,165 @@ for PSGI applications.
 
 =item C<< new($key => $value, ...) >>
 
+Create an instance with constructor inhjection.
+Injectable attributes are:
+
+    keyword_name => 'keyword',  # parameter name for nuked keyword.
+    max_post => 100 * 1024,     # maximum post length in bytes.
+    enable_upload => 0,         # 0: disable, 1: enable.
+    block_size => 4 * 1024,     # read block size
+    max_header => 1 * 1024,     # maximum header size in multipart/formdata
+    fatals_to_browser => 0,     # 0: none, 1: appears error message.
+    error_page_builder => undef,    # error page builder code reference.
+    crlf => undef,              # crlf code in scalar, undef for auto detect.
+    env => $env,                # PSGI environment hash reference.
+    error => undef,             # error string.
+    code => undef,              # status code for response.
+    body => undef,              # body for response.
+    header => {},               # header for request/response.
+    cookie => {},               # cookie for response.
+    request_cookie => {},       # cookie of request.
+    param => {},                # parameters of request.
+    upload => {},               # uploads of request.
+
 =item C<< new_response($rc, \@headers, \@body) >>
+
+Create an instance with response status code, headers, and, body.
 
 =item C<< keyword_name($string) >>
 
+Sets/Gets parameter name for nuked keyword in query part such as:
+
+    http://example.net/wiki?FrontPage
+
 =item C<< max_post($integer) >>
+
+Sets/Gets maximum content length limits the post entity in bytes.
 
 =item C<< enable_upload($bool) >>
 
+Sets/Gets getting the feature of the uploaded files.
+
+    0: disable
+    1: enable.
+
 =item C<< block_size($integer) >>
+
+Sets/Gets Block size to read the POST entity.
 
 =item C<< crlf($string) >>
 
+Sets/Gets CRLF code.
+
 =item C<< max_header($integer) >>
+
+Sets/Gets Maximum header size limits in the multipart/formdata entity.
+
+=item C<< env($key => $string) >>
+
+Sets/Gets the PSGI environment hash reference.
+This will be used in scan_formdata, scan_header, and, scan_cookie.
+
+=item C<< address($string) >>
+
+Gets the remote address. This is as same as C<< $c->env->{REMOTE_ADDR} >>.
+
+=item C<< method($string) >>
+
+Gets the request method. This is as same as C<< $c->env->{REQUEST_METHOD} >>.
+
+=item C<< path($string) >>
+
+Gets the path. This is as same as C<< $c->env->{PATH_INFO} || q{/} >>.
+
+=item C<< path_info($string) >>
+
+Gets the path_info. This is as same as C<< $c->env->{PATH_INFO} >>.
+
+=item C<< port($string) >>
+
+Gets the server port. This is as same as C<< $c->env->{SERVER_PORT} >>.
+
+=item C<< protocol($string) >>
+
+Gets the server protocol. This is as same as C<< $c->env->{SERVER_PROTOCOL} >>.
+
+=item C<< remote_host($string) >>
+
+Gets the remote host. This is as same as C<< $c->env->{REMOTE_HOST} >>.
+
+=item C<< request_uri($string) >>
+
+Gets the request uri. This is as same as C<< $c->env->{REQUEST_URI} >>.
+
+=item C<< user($string) >>
+
+Gets the remote user. This is as same as C<< $c->env->{REMOTE_USER} >>.
+
+=item C<< scan_header(\%HASH) >>
+
+Scans headers from PSGI environment hash references.
+If there is no argument, C<< $self->env>> is used.
+
+    $req->replace(header => $req->scan_header);
+
+NOTICE: For each header, the name of it becomes the capitalized format always.
+So that, some got names are differences from HTTP Standard's one.
+
+    Got Name:           Standard Name:
+    ------------------- --------------------
+    Mime-Version        MIME-Version
+    Te                  TE
+    Www-Authenticate    WWW-Authenticate
+    Content-Md5         Content-MD5
+    Etag                ETag
+    Uri                 URI
+
+=item C<< scheme($string) >>
+
+Gets the scheme. This is as same as C<< $c->env->{'psgi.scheme'} >>.
 
 =item C<< script_name($string) >>
 
+Gets the script name. This is as same as C<< $c->env->{SCRIPT_NAME} >>.
+
+=item C<< secure($string) >>
+
+Returns true if the scheme is https.
+This is as same as C<< $c->env->{'psgi.scheme'} eq 'https' >>.
+
 =item C<< code($digits) >>
 
-B<Response> status code.
+Sets/Gets B<Response> status code.
 
 =item C<< status($digits) >>
 
-B<Response> status code.
-This is alias of the C<code> property.
+Sets/Gets B<Response> status code.
+This is alias of the C<code> attribute.
 
 =item C<< content_type($string) >>
 
-B<Response> header Content-Type.
+Sets/Gets the Content-Type header.
 
 =item C<< content_length($integer) >>
 
-B<Respons> header Content-Length.
+Sets/Gets the Content-Length header.
 
 =item C<< header($name => $value) >>
 
-B<Response> headers.
+Sets/Gets header value for given name.
 
 =item C<< cookie($name => $value, expires => time - 3600) >>
 
-B<Response> cookies.
+Sets/Gets B<Response> cookies.
 
 =item C<< body($string) >>
 
-B<Response> body.
+Sets/Gets B<Response> body.
 
 =item C<< redirect($uri) >>
 
-B<Response> redirect pointer.
+Sets/Gets B<Response> redirect pointer.
 
 =item C<< finalize >>
 
@@ -759,14 +870,6 @@ HTTP response rules.
 =item C<< finalize_cookie >>
 
 Creates Set-Cookie headers.
-
-=item C<< sort_header($header) >>
-=item C<< sort_header(@header_pairlist) >>
-
-Sorts header in the same order of HTTP::Header's as_string method.
-
-    $res = $q->finalize;
-    $res->[1] = $q->sort_header($res->[1]);
 
 =item C<< fatals_to_browser($bool) >>
 
@@ -878,7 +981,7 @@ Before use this attribute, you must set scan_formdata result manually.
 
 =item C<< error >>
 
-Sets or reads error message.
+Sets/Gets error message.
 
 =back
 

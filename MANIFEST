@@ -8,6 +8,7 @@ t/01.methods.t
 t/02.scan_cookie.t
 t/03.query.t
 t/04.post.t
+t/05.scan_header.t
 t/10.set_cookie.t
 t/11.normalize.t
 t/12.finalize.t

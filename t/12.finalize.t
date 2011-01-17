@@ -3,6 +3,23 @@ use warnings;
 use Test::Base;
 use CGI::Hatchet;
 
+my @HEADER_NANE = qw(
+    Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
+    Upgrade Via Accept Accept-Charset Accept-Encoding Accept-Language
+    Authorization Expect From Host
+    If-Match If-Modified-Since If-None-Match If-Range If-Unmodified-Since
+    Max-Forwards Proxy-Authorization Range Referer TE User-Agent
+    Accept-Ranges Age Location Proxy-Authenticate Retry-After Server
+    Vary Warning WWW-Authenticate
+    Allow Content-Base Content-Encoding Content-Language Content-Length
+    Content-Location Content-MD5 Content-Range Content-Type ETag Expires
+    Last-Modified URI Cookie Set-Cookie
+);
+
+my %HEADER_ORDER = map {
+    lc $HEADER_NANE[$_] => sprintf '%3d', $_ + 1
+} 0 .. $#HEADER_NANE;
+
 plan tests => 1 * blocks;
 
 filters {
@@ -14,8 +31,22 @@ run_is_deeply 'input' => 'expected';
 
 sub test_finalize {
     my $res = CGI::Hatchet->new_response(@_)->finalize;
-    $res->[1] = CGI::Hatchet->sort_header($res->[1]);
+    $res->[1] = sort_header($res->[1]);
     return $res;
+}
+
+sub sort_header {
+    my(@arg) = @_;
+    my $q = CGI::Hatchet->new_response;
+    $q->replace(header => @arg);
+    return [
+        map {
+            my $name = $_;
+            map { $name => $_ } $q->header($name);
+        } sort {
+            ($HEADER_ORDER{lc $a} || $a) cmp ($HEADER_ORDER{lc $b} || $b)
+        } $q->header,
+    ];
 }
 
 __END__

@@ -1,5 +1,13 @@
 Revision history for CGI-Hatchet
 
+0.010  Mon Jan 17 07:05:49 2011
+    + add env attribute and its convenient readers.
+    + add scan_header method.
+    - remove sort_header method.
+    + update t/02.methods.t
+    + add t/05.scan_cookie.t
+    ! scan_formdata returns always {query_param => [..], body_param =>[..]}.
+
 0.009  Tue Jan 11 08:18:30 2011
     ! property rename status to code.
     + alias status to code.

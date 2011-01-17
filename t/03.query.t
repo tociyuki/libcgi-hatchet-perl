@@ -33,6 +33,7 @@ __END__
         'b' => 'B',
         'c' => 'C',
     ],
+    body_param => [],
 }
 
 === simple a ; b ; c
@@ -49,6 +50,7 @@ __END__
         'b' => 'B',
         'c' => 'C',
     ],
+    body_param => [],
 }
 
 === complex foo, bar, keyword
@@ -65,6 +67,7 @@ __END__
         'bar' => '==BAR=BAR==',
         'keyword' => 'baz',
     ],
+    body_param => [],
 }
 
 === multi values
@@ -81,6 +84,7 @@ __END__
         'a' => 'B',
         'a' => 'C',
     ],
+    body_param => [],
 }
 
 === multi keyword values
@@ -99,6 +103,7 @@ __END__
         'a' => 'C',
         'a' => 'D',
     ],
+    body_param => [],
 }
 
 === decode uri
@@ -113,5 +118,6 @@ __END__
     query_param => [
         'ab  cd' => 'ef  gh',
     ],
+    body_param => [],
 }
 
