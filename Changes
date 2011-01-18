@@ -1,5 +1,9 @@
 Revision history for CGI-Hatchet
 
+0.011  Tue Jan 18 14:04:24 2011
+    ! change attributes propagation rules on $q->new_response().
+    ! change attributes propagation rules on $q->new().
+
 0.010  Mon Jan 17 07:05:49 2011
     + add env attribute and its convenient readers.
     + add scan_header method.

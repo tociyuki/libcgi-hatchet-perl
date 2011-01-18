@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.010';
+use version; our $VERSION = '0.011';
 
 # $Id$
 # $Revision$
@@ -39,6 +39,7 @@ sub secure      { return shift->scheme eq 'https' }
 sub new {
     my($class, @arg) = @_;
     my $self = bless {
+        env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         keyword_name => 'keyword',
         max_post => 100 * 1024,
         enable_upload => 0,
@@ -48,7 +49,6 @@ sub new {
         error_page_builder => undef,
         crlf => undef,
         (ref $class ? %{$class} : ()),
-        env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         error => undef,
         code => undef,
         body => undef,
@@ -78,23 +78,13 @@ sub new_response {
         error => undef,
     }, ref $class ? ref $class : $class;
     if (ref $class) {
-        my @extend = qw(
-            error code fatals_to_browser error_page_builder crlf env
-        );
-        for my $attr (@extend) {
+        for my $attr (
+            qw(error code fatals_to_browser error_page_builder crlf env)
+        ) {
             $self->$attr($class->$attr);
         }
-        for my $k ($class->header) {
-            $self->header($k => $class->header($k));
-        }
-        for my $k ($class->cookie) {
-            $self->cookie($k => $class->cookie($k));
-        }
-        $self->body(
-            ref $class->body eq 'ARRAY' ? [@{$class->body}] : $class->body,
-        );
     }
-    if (defined $rc && ! $self->error) {
+    if (! $self->error) {
         $self->code($rc);
     }
     if (ref $headers eq 'ARRAY') {
@@ -604,7 +594,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.010
+0.011
 
 =head1 SYNOPSIS
 
@@ -612,27 +602,18 @@ CGI::Hatchet - low level request decoder and response container.
     use File::Slurp;
     use Hash::MultiValue;
     
-    # create instance.
-    $q = CGI::Hatchet->new(
-        post_max => 16 * 1024, enable_upload => 1,
+    $res = CGI::Hatchet->new(
+        code => '200',
+        header => ['Content-Type' => 'text/plain'],
+        content => ['Hello, ', 'World!'],
         env => $env,
+        post_max => 16 * 1024,
+        enable_upload => 1,
     );
-    # create instance with response settings
-    $res = $q->new_response(
-        '200',
-        ['Content-Type' => 'text/plain'],
-        ['Hello, ', 'World!'],
-    );
-    
-    # or via the instance as a factory.
-    $factory = CGI::Hatchet->new;
-    $factory->max_post(256 * 1024);
-    $factory->enable_upload(1);
-    $q = $factory->new(env => $env);
-    $q = $factory->new_response(200);
+    $req = $res->new;
     
     # fetch parameters.
-    my $ph = $q->scan_formdata;
+    my $ph = $res->scan_formdata;
     my $parameters = Hash::MultiValue->new(
         @{$ph->{query_param}}, @{$ph->{body_param}},
     );
@@ -648,44 +629,35 @@ CGI::Hatchet - low level request decoder and response container.
     }
     
     # you can access this module's param, upload, and upload_info attribute.
-    $q->replace(param => $ph->{body_param});
+    $req->replace(param => $ph->{body_param});
     for (0 .. -1 + int @{$qh->{upload_info}} / 2) {
         my $i = $_ * 2;
         my $fh = delete $qh->{upload_info}[$i + 1]{handle};
         seek $fh, 0, 0;
-        $q->upload($qh->{upload_info}[$i], $fh);
+        $req->upload($qh->{upload_info}[$i], $fh);
     }
-    my $filename = $q->param('up');
-    my $upload_body = File::Slurp::read_file($q->upload($filename));
+    my $filename = $req->param('up');
+    my $upload_body = File::Slurp::read_file($req->upload($filename));
     
-    # fetch cookies
-    my $cookies = Hash::MultiValue->new($q->scan_cookie);
+    my $cookies = Hash::MultiValue->new($res->scan_cookie);
     # you may access this module'srequest_cookie attribute.
-    $q->replace(request_cookie => $q->scan_cookie);
-    for my $name ($q->request_cookie) {
-        for my $value ($q->request_cookie($name)) {
+    $req->replace(request_cookie => $res->scan_cookie);
+    for my $name ($req->request_cookie) {
+        for my $value ($req->request_cookie($name)) {
             print "$name: $value\n";
         }
     }
     
-    # setup response
-    $q->code(200);
-    $q->content_type('text/plain');
-    $q->body(['Hello, ', 'World!']);
-    # set cookie
-    $q->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
-    # add header
-    $q->header('ETag' => q{"iU8ADFlEtdad3a"});
-    # replace body
-    $q->body(['Hello all.']);
-    # redirect
-    $q->redirect('http://another.net/', '303');
-    # write Set-Cookie header from cookie attribute
-    $q->finalize_cookie;
-    # normalize status code, headers, and body.
-    $q->normalize($env);
-    # create PSGI response
-    my $psgi_res = $q->finalize;
+    $res->code(200);
+    $res->content_type('text/plain');
+    $res->body(['Hello, ', 'World!']);
+    $res->cookie('a' => q{}, 'expires' => time - 365 * 24 * 3600);
+    $res->header('ETag' => q{"iU8ADFlEtdad3a"});
+    $res->body(['Hello all.']);
+    $res->redirect('http://another.net/', '303');
+    $res->finalize_cookie;
+    $res->normalize;
+    my $psgi_res = $res->finalize;
 
 =head1 DESCRIPTION
 
@@ -796,7 +768,7 @@ Gets the remote user. This is as same as C<< $c->env->{REMOTE_USER} >>.
 =item C<< scan_header(\%HASH) >>
 
 Scans headers from PSGI environment hash references.
-If there is no argument, C<< $self->env>> is used.
+If there is no argument, C<< $self->env >> is used.
 
     $req->replace(header => $req->scan_header);
 

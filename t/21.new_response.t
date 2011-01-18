@@ -82,9 +82,11 @@ sub{ 'injected' }
 === code
 --- input
 sub{ '200' }
+--- expected
+undef
 
 === code
-replace code with inject
+code with inject
 --- input
 sub{ '200' }
 --- inject
@@ -93,13 +95,13 @@ sub{ '200' }
 '304'
 
 === code
-pass code with inject undef
+code is undef to injected undef
 --- input
 sub{ '200' }
 --- inject
 (undef)
 --- expected
-'200'
+undef
 
 === code
 drop code inject on error
@@ -113,10 +115,14 @@ sub{ $_[1]->error('bad'); '500' }
 === content_type
 --- input
 sub{ 'application/x-perl-test' }
+--- expected
+undef
 
 === content_length
 --- input
 sub{ 128 }
+--- expected
+undef
 
 === content_length
 drop content_length on inject body
@@ -131,7 +137,7 @@ undef
 --- input
 sub{ ['Hello', 'World!'] }
 --- expected
-['Hello', 'World!']
+undef
 
 === body
 replace body with inject
@@ -143,13 +149,13 @@ sub{ ['Hello', 'World!'] }
 'injected'
 
 === body
-pass body with inject undef
+undef body with inject undef
 --- input
 sub{ ['Hello', 'World!'] }
 --- inject
 (undef, undef, undef)
 --- expected
-['Hello', 'World!']
+undef
 
 === fatals_to_browser
 --- input
@@ -181,11 +187,7 @@ sub{ ['a' => 'A', 'b' => 'B', 'a' => 'A1'] }
 --- input
 sub{ ['A' => 'a0', 'A' => 'a1', 'Set-Cookie' => 'u=', 'Set-Cookie' => 'k=v'] }
 --- expected
-{
-    'keys' => {map { $_ => 1 } 'A', 'Set-Cookie'},
-    'A' => ['a1'],
-    'Set-Cookie' => ['u=', 'k=v'],
-}
+{'keys' => {}}
 
 === header
 replace header with inject
@@ -206,9 +208,7 @@ sub{ ['A' => 'a0', 'A' => 'a1', 'Set-Cookie' => 'u=', 'Set-Cookie' => 'k=v'] }
 --- inject
 (undef, [])
 --- expected
-{
-    'keys' => {},
-}
+{'keys' => {}}
 
 === header
 pass header with inject undef
@@ -217,19 +217,11 @@ sub{ ['A' => 'a0', 'A' => 'a1', 'Set-Cookie' => 'u=', 'Set-Cookie' => 'k=v'] }
 --- inject
 (undef, undef)
 --- expected
-{
-    'keys' => {map { $_ => 1 } 'A', 'Set-Cookie'},
-    'A' => ['a1'],
-    'Set-Cookie' => ['u=', 'k=v'],
-}
+{'keys' => {}}
 
 === cookie
 --- input
 sub{ ['a' => 'a0', 'b' => {name => 'b', value => 'b0'}] }
 --- expected
-{
-    'keys' => {map { $_ => 1 } 'a', 'b'},
-    'a' => [{name => 'a', value => 'a0'}],
-    'b' => [{name => 'b', value => 'b0'}],
-}
+{'keys' => {}}
 
