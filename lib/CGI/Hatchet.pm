@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 use IO::File;
 
-use version; our $VERSION = '0.011';
+use version; our $VERSION = '0.012';
 
 # $Id$
 # $Revision$
@@ -38,6 +38,12 @@ sub secure      { return shift->scheme eq 'https' }
 
 sub new {
     my($class, @arg) = @_;
+    if (ref $arg[0] eq 'HASH' && exists $arg[0]->{'psgi.version'}) {
+        unshift @arg, 'env';
+    }
+    elsif (@arg == 1 && ref $arg[0] eq 'HASH') {
+        @arg = %{$arg[0]};
+    }
     my $self = bless {
         env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         keyword_name => 'keyword',
@@ -58,9 +64,9 @@ sub new {
         upload => {},
         request_cookie => {},
     }, ref $class ? ref $class : $class;
-    my $opt = @arg == 1 && ref $arg[0] eq 'HASH' ? $arg[0] : {@arg};
-    while (my($k, $v) = each %{$opt}) {
-        $self->replace($k => $v);
+    for (0 .. -1 + int @arg / 2) {
+        my $i = $_ * 2;
+        $self->replace($arg[$i] => $arg[$i + 1]);
     }
     return $self;
 }
@@ -594,7 +600,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.011
+0.012
 
 =head1 SYNOPSIS
 
@@ -669,6 +675,7 @@ for PSGI applications.
 =over
 
 =item C<< new($key => $value, ...) >>
+=item C<< new({$key => $value, ...}) >>
 
 Create an instance with constructor inhjection.
 Injectable attributes are:
@@ -691,9 +698,16 @@ Injectable attributes are:
     param => {},                # parameters of request.
     upload => {},               # uploads of request.
 
+=item C<< new(\%env) >>
+
+Create an instance with a PSGI environment hash reference
+as similar as C<< Plack::Request->new($env) >>.
+The PSGI environment must have a key 'psgi.version'.
+
 =item C<< new_response($rc, \@headers, \@body) >>
 
-Create an instance with response status code, headers, and, body.
+Create an instance with response status code, headers, and, body
+as similar as C<< Plack::Request->new($env)->new_response(200) >>.
 
 =item C<< keyword_name($string) >>
 

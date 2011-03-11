@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::Base tests => 184;
+use Test::Base tests => 185;
 BEGIN {
     require 't/lib/Test/Behaviour/Spec.pm';
     Test::Behaviour::Spec->import;
@@ -325,6 +325,11 @@ use CGI::Hatchet;
 
         my $q1 = CGI::Hatchet->new(env => {A => 'a', B => 'b'});
         is_deeply $q1->env, {A => 'a', B => 'b'}, spec;
+
+    it 'is the default constructor argument.';
+
+        my $q2 = CGI::Hatchet->new({'psgi.version' => [1, 0], A => 'a'});
+        is_deeply $q2->env, {'psgi.version' => [1, 0], A => 'a'}, spec;
 
     it 'is succeeded to responses.';
 

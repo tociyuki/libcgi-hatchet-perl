@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.012  Fri Mar 11 04:15:23 2011
+    ! if new takes one argument PSGI env, it will set it into env attribute.
+
 0.011  Tue Jan 18 14:04:24 2011
     ! change attributes propagation rules on $q->new_response().
     ! change attributes propagation rules on $q->new().

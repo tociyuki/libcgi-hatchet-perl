@@ -1,4 +1,4 @@
-CGI-Hatchet version 0.011
+CGI-Hatchet version 0.012
 
 Similiar as CGI, CGI::Hatchet scans formdata from PSGI environment.
 
