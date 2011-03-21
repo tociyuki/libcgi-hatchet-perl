@@ -3,7 +3,7 @@ use warnings;
 use Test::Base;
 use CGI::Hatchet;
 
-my @HEADER_NANE = qw(
+my @HEADER_NAME = qw(
     Cache-Control Connection Date MIME-Version Pragma Transfer-Encoding
     Upgrade Via Accept Accept-Charset Accept-Encoding Accept-Language
     Authorization Expect From Host
@@ -17,8 +17,8 @@ my @HEADER_NANE = qw(
 );
 
 my %HEADER_ORDER = map {
-    lc $HEADER_NANE[$_] => sprintf '%3d', $_ + 1
-} 0 .. $#HEADER_NANE;
+    lc $HEADER_NAME[$_] => sprintf '%3d', $_ + 1
+} 0 .. $#HEADER_NAME;
 
 plan tests => 1 * blocks;
 

@@ -229,6 +229,35 @@ C
 }
 --- body
 
+=== multipart encoded name
+--- option
+{crlf => "\n"}
+--- env
+{
+    'REQUEST_METHOD' => 'POST',
+    'CONTENT_TYPE' => 'multipart/form-data; boundary=LMK8SN1abxqdYVn0QlDRB',
+}
+--- formdata
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="=?UTF-8?B?44GC44GE?="
+
+hiragana a hiragana i
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="%E3%82%A2%E3%82%A4"
+
+katakana a katakana i
+--LMK8SN1abxqdYVn0QlDRB--
+--- expected
+{
+    query_param => [],
+    body_param => [
+        "\x{3042}\x{3044}" => 'hiragana a hiragana i',
+        "\x{30a2}\x{30a4}" => 'katakana a katakana i',
+    ],
+    upload_info => [],
+}
+--- body
+
 === small block_size
 --- option
 {crlf => "\n", block_size => 8}

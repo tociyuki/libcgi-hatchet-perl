@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.013  Mon Mar 21 10:13:13 2011
+    ! decode multi-part/formdata RFC 2047 or url-encoded name.
+
 0.012  Fri Mar 11 04:15:23 2011
     ! if new takes one argument PSGI env, it will set it into env attribute.
 

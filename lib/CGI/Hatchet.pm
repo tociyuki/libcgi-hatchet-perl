@@ -3,9 +3,10 @@ use 5.008002;
 use strict;
 use warnings;
 use Carp;
+use Encode;
 use IO::File;
 
-use version; our $VERSION = '0.012';
+use version; our $VERSION = '0.013';
 
 # $Id$
 # $Revision$
@@ -349,7 +350,6 @@ sub _decode_uri {
 sub _encode_uri {
     my($uri) = @_;
     if (utf8::is_utf8($uri)) {
-        require Encode;
         $uri = Encode::encode('utf-8', $uri);
     }
     $uri =~ s{
@@ -583,7 +583,14 @@ sub _content_disposition {
     my $s = $header->{'CONTENT_DISPOSITION'} or return;
     my %h;
     while ($s =~ m/\b((?:file)?name)=(?:"(.*?)"|([^;]*))/msxog) {
-        $h{$1} = $+;
+        my($k, $v) = ($1, $+);
+        if ($v =~ /\=\?.+\?\=/msx) {
+            $v = Encode::decode('MIME-Header', $v);
+        }
+        else {
+            $v = Encode::decode('UTF-8', _decode_uri($v));
+        }
+        $h{$k} = $v;
     }
     return @h{'name', 'filename'};
 }
@@ -600,7 +607,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.012
+0.013
 
 =head1 SYNOPSIS
 
