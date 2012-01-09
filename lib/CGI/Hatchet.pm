@@ -6,7 +6,7 @@ use Carp;
 use Encode;
 use IO::File;
 
-use version; our $VERSION = '0.013';
+use version; our $VERSION = '0.014';
 
 # $Id$
 # $Revision$
@@ -116,7 +116,7 @@ sub cookie {
             return delete $self->{cookie}{$k};
         }
         if (@arg == 1 && ref $arg[0] eq 'HASH') {
-            $self->{cookie}{$k} = { %{$arg[0]} };
+            $self->{cookie}{$k} = {name => $k, %{$arg[0]}};
         }
         else {
             $self->{cookie}{$k} = {name => $k, value => @arg};
@@ -159,8 +159,10 @@ sub finalize_cookie {
         my $cookie = $self->cookie($key);
         my @dough = (
             _encode_uri($cookie->{name}) . q{=} . _encode_uri($cookie->{value}),
-            ($cookie->{domain} ? 'domain=' . _encode_uri($cookie->{domain}) : ()),
-            ($cookie->{path}) ? 'path=' . _encode_uri($cookie->{path}) : (),
+            ($cookie->{domain}
+                ? 'domain=' . _encode_uri($cookie->{domain}) : ()),
+            ($cookie->{path})
+                ? 'path=' . _encode_uri_path($cookie->{path}) : (),
         );
         if (defined $cookie->{expires}) {
             my($s, $min, $h, $d, $mon, $y, $w) = gmtime $cookie->{expires};
@@ -204,7 +206,7 @@ sub normalize {
             }
         }
     }
-    if ($self->code =~ /\A(?:1[0-9][0-9]|[23]04)\z/msx) {
+    if ($self->code =~ m/\A(?:1[0-9][0-9]|[23]04)\z/msx) {
         $self->content_length(undef);
         $self->body(undef);
     }
@@ -352,8 +354,17 @@ sub _encode_uri {
     if (utf8::is_utf8($uri)) {
         $uri = Encode::encode('utf-8', $uri);
     }
+    $uri =~ s{([^a-zA-Z0-9_\-./])}{ sprintf '%%%02X', ord $1 }egmosx;
+    return $uri;
+}
+
+sub _encode_uri_path {
+    my($uri) = @_;
+    if (utf8::is_utf8($uri)) {
+        $uri = Encode::encode('utf-8', $uri);
+    }
     $uri =~ s{
-        (?:(\%([0-9A-Fa-f]{2})?)|([^a-zA-Z0-9_~\-.=+\$,:\@/;?\&\#]))
+        (?:(\%([0-9A-Fa-f]{2})?)|([^a-zA-Z0-9_~\-.=+\$,:\@/?\&\#]))
     }{
         $2 ? $1 : $1 ? '%25' : sprintf '%%%02X', ord $3
     }egmosx;
@@ -404,8 +415,8 @@ sub _param_accessor {
         my $k = shift @arg;
         if (@arg) {
             if (@arg == 1 && ! defined $arg[0]) {
+                return if ! exists $self->{$attr}{$k};
                 my $v = delete $self->{$attr}{$k};
-                return if ! $v;
                 return wantarray ? @{$v} : $v->[-1];
             }
             if ($attr eq 'header' && lc $k ne 'set-cookie') {
@@ -607,7 +618,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.013
+0.014
 
 =head1 SYNOPSIS
 
@@ -618,7 +629,7 @@ CGI::Hatchet - low level request decoder and response container.
     $res = CGI::Hatchet->new(
         code => '200',
         header => ['Content-Type' => 'text/plain'],
-        content => ['Hello, ', 'World!'],
+        body => ['Hello, ', 'World!'],
         env => $env,
         post_max => 16 * 1024,
         enable_upload => 1,
@@ -960,8 +971,8 @@ Before use this attribute, you must set scan_formdata result manually.
 
 =item C<< request_cookie($name) >>
 
-Attribute for accessing formdata parameters similiar as CGI's param.
-Before use this attribute, you must set scan_formdata result manually.
+Attribute for accessing request cookies.
+Before use this attribute, you must set scan_cookie result manually.
 
     $q->replace(request_cookie => $q->scan_cookie($env));
     for my $key ($q->request_cookie) {
@@ -992,7 +1003,7 @@ MIZUTANI Tociyuki  C<< <tociyuki@gmail.com> >>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright (c) 2011, MIZUTANI Tociyuki C<< <tociyuki@gmail.com> >>.
+Copyright (c) 2012, MIZUTANI Tociyuki C<< <tociyuki@gmail.com> >>.
 All rights reserved.
 
 This module is free software; you can redistribute it and/or

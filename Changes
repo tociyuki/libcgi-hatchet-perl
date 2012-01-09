@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.014  Mon Jan  9 03:22:57 2012
+    ! fix mistake in the SYNOPSIS s/content/body/g.
+
 0.013  Mon Mar 21 10:13:13 2011
     ! decode multi-part/formdata RFC 2047 or url-encoded name.
 
