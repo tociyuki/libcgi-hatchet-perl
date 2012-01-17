@@ -1,5 +1,8 @@
 Revision history for CGI-Hatchet
 
+0.015  Tue Jan 17 20:16:05 2012
+    + add new attribute max_params to avoid hashdos.
+
 0.014  Mon Jan  9 03:22:57 2012
     ! fix mistake in the SYNOPSIS s/content/body/g.
 

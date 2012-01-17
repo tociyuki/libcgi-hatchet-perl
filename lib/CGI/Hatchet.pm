@@ -6,7 +6,7 @@ use Carp;
 use Encode;
 use IO::File;
 
-use version; our $VERSION = '0.014';
+use version; our $VERSION = '0.015';
 
 # $Id$
 # $Revision$
@@ -16,6 +16,7 @@ __PACKAGE__->_mk_attributes(
     \&_scalar_accessor => qw(
         keyword_name max_post enable_upload block_size max_header
         fatals_to_browser error_page_builder error code body env
+        max_params
     ),
 );
 __PACKAGE__->_mk_attributes(
@@ -49,6 +50,7 @@ sub new {
         env => {SERVER_PROTOCOL => 'HTTP/1.0', SCRIPT_NAME => q{}},
         keyword_name => 'keyword',
         max_post => 100 * 1024,
+        max_params => 512,
         enable_upload => 0,
         block_size => 4 * 1024,
         max_header => 1 * 1024,
@@ -437,8 +439,11 @@ sub _param_accessor {
 sub _scan_urlencoded {
     my($self, $data) = @_;
     defined $data or return [];
+    my $nparam = 0;
+    my $max_params = $self->max_params;
     my @param;
     for (split /[&;]/msx, $data) {
+        last if ++$nparam > $max_params;
         my @pair = split /=/msx, $_, 2;
         if (@pair == 1) {
             unshift @pair, $self->keyword_name; # 'k'
@@ -471,6 +476,8 @@ sub _scan_multipart_formdata {
         body_param => [],
         upload_info => [],
     };
+    my $nparam = 0;
+    my $max_params = $self->max_params;
     my $state = 1;
     while ($state) {
         if ($state == 1) {
@@ -485,6 +492,7 @@ sub _scan_multipart_formdata {
         }
         elsif ($state == 2) {
             if ($body =~ s/\A${crlf}//msx) {
+                last if ++$nparam > $max_params;
                 $setter = $self->_proc_setter($c);
                 $hd_size = 0;
                 $hd_name = q{};
@@ -618,7 +626,7 @@ CGI::Hatchet - low level request decoder and response container.
 
 =head1 VERSION
 
-0.014
+0.015
 
 =head1 SYNOPSIS
 
@@ -736,6 +744,11 @@ Sets/Gets parameter name for nuked keyword in query part such as:
 =item C<< max_post($integer) >>
 
 Sets/Gets maximum content length limits the post entity in bytes.
+
+=item C<< max_params($integer) >>
+
+Sets/Gets maximum number of keys in QUERY or POST parameters
+to avoid hashdos.
 
 =item C<< enable_upload($bool) >>
 

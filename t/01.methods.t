@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::Base tests => 185;
+use Test::Base tests => 190;
 BEGIN {
     require 't/lib/Test/Behaviour/Spec.pm';
     Test::Behaviour::Spec->import;
@@ -87,6 +87,33 @@ use CGI::Hatchet;
     
         my $q1 = CGI::Hatchet->new(max_post => 4 * $x);
         is $q1->max_post, 4 * $x, spec;
+}
+
+{
+    describe 'max_params';
+
+    it 'is an attribute of CGI::Hatchet.';
+
+        my $q = CGI::Hatchet->new;
+        can_ok $q, 'max_params';
+
+    it 'has a default number value.';
+
+        my $x = $q->max_params;
+        ok defined $x && ! ref $x && $x =~ /\A[0-9]+\z/msx, spec;
+
+    it 'changes value.';
+
+        is $q->max_params(2 * $x), 2 * $x, spec;
+
+    it 'keeps last value.';
+
+        is $q->max_params, 2 * $x, spec;
+
+    it 'is constructor-injectable.';
+    
+        my $q1 = CGI::Hatchet->new(max_params => 4 * $x);
+        is $q1->max_params, 4 * $x, spec;
 }
 
 {

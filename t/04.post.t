@@ -66,6 +66,28 @@ a=A&b=B&c=C
 }
 --- body
 
+=== max_params
+--- option
+{max_params => 4}
+--- env
+{
+    REQUEST_METHOD => 'POST',
+    CONTENT_TYPE => 'application/x-www-form-urlencoded',
+}
+--- formdata
+a=1&b=2&c=3&d=4&e=5&f=6
+--- expected
+{
+    query_param => [],
+    body_param => [
+        'a' => 1,
+        'b' => 2,
+        'c' => 3,
+        'd' => 4,
+    ],
+}
+--- body
+
 === simple with query_param
 --- option
 --- env
@@ -224,6 +246,53 @@ C
         'b' => 'B',
         'a' => 'A1',
         'c' => 'C',
+    ],
+    upload_info => [],
+}
+--- body
+
+=== simple multipart max_params
+--- option
+{crlf => "\n", max_params => 4}
+--- env
+{
+    'REQUEST_METHOD' => 'POST',
+    'CONTENT_TYPE' => 'multipart/form-data; boundary=LMK8SN1abxqdYVn0QlDRB',
+}
+--- formdata
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="a"
+
+1
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="b"
+
+2
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="c"
+
+3
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="d"
+
+4
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="e"
+
+5
+--LMK8SN1abxqdYVn0QlDRB
+Content-Disposition: form-data; name="f"
+
+6
+--LMK8SN1abxqdYVn0QlDRB--
+--- expected
+{
+    query_param => [],
+    body_param => [
+        'a' => 1,
+        'b' => 2,
+        'c' => 3,
+        'd' => 4,
     ],
     upload_info => [],
 }
